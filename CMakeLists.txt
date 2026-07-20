@@ -24,6 +24,13 @@ target_link_libraries(cumlgo
 
 add_executable(test_cuml
     cpp/main.cpp
+    benchmark/dataset/dataset.cpp
+)
+
+target_include_directories(test_cuml
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/cpp
+        ${CMAKE_SOURCE_DIR}/benchmark
 )
 
 target_link_libraries(test_cuml

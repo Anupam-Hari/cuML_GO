@@ -1,23 +1,18 @@
 #include <iostream>
+#include <vector>
 
 #include "random_forest/random_forest.h"
+#include "dataset/dataset.h"
 
 int main()
 {
-    float X[] = {
-        0.0f, 0.0f,
-        0.0f, 1.0f,
-        1.0f, 0.0f,
-        1.0f, 1.0f
-    };
+    Dataset dataset = load_csv("benchmark/data/iris.csv");
 
-    int y[] = {
-        0,
-        0,
-        1,
-        1
-    };
-
+    std::cout << "Loaded dataset\n";
+    std::cout << "Rows    : " << dataset.rows << '\n';
+    std::cout << "Cols    : " << dataset.cols << '\n';
+    std::cout << "Classes : " << dataset.classes << '\n';
+    
     RFHandle* rf = rf_create(
         10,     // n_estimators
         5,      // max_depth
@@ -33,21 +28,21 @@ int main()
 
     int status = rf_fit(
         rf,
-        X,
-        4,      // rows
-        2,      // cols
-        y,
-        2       // number of classes
+        dataset.X.data(),
+        dataset.rows,
+        dataset.cols,
+        dataset.y.data(),
+        dataset.classes
     );
 
-    int predictions[4];
+    std::vector<int> predictions(dataset.rows);
 
     status = rf_predict(
         rf,
-        X,
-        4,
-        2,
-        predictions
+        dataset.X.data(),
+        dataset.rows,
+        dataset.cols,
+        predictions.data()
     );
 
     std::cout << "rf_predict returned: "
@@ -56,11 +51,26 @@ int main()
     if (status == 0) {
         std::cout << "Predictions: ";
 
-        for (int i = 0; i < 4; ++i)
-             std::cout << predictions[i] << " ";
+        for (int prediction:predictions)
+             std::cout << prediction << " ";
 
         std::cout << std::endl;
     }
+
+    int correct = 0;
+
+    for (int i = 0; i < dataset.rows; ++i) {
+        if (predictions[i] == dataset.y[i]) {
+            ++correct;
+        }
+    }
+
+    float accuracy =
+        static_cast<float>(correct) / dataset.rows;
+
+    std::cout << "\nTraining Accuracy: "
+              << accuracy * 100.0f
+              << "%\n";
 
     std::cout << "rf_fit returned: " << status << std::endl;
 
