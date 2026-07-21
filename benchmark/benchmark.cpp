@@ -124,11 +124,14 @@ BenchmarkResult benchmark_random_forest(
         dataset.cols,
         predictions.data());
 
-    result.predict_time_ms = timer.stop();
+    double predict_time_ms = timer.stop();
+
+    result.prediction_throughput =
+        result.test_rows / (predict_time_ms / 1000.0);
 
     result.total_time_ms =
         result.train_time_ms +
-        result.predict_time_ms;
+        predict_time_ms;
 
     rf_destroy(rf);
 
@@ -172,11 +175,14 @@ BenchmarkResult benchmark_knn(
         dataset.cols,
         predictions.data());
 
-    result.predict_time_ms = timer.stop();
+    double predict_time_ms = timer.stop();
+    
+    result.prediction_throughput =
+        result.test_rows / (predict_time_ms / 1000.0);
 
     result.total_time_ms =
         result.train_time_ms +
-        result.predict_time_ms;
+        predict_time_ms;
 
     knn_destroy(knn);
 
@@ -222,11 +228,14 @@ BenchmarkResult benchmark_kmeans(
         dataset.cols,
         labels.data());
 
-    result.predict_time_ms = timer.stop();
+    double predict_time_ms = timer.stop();
+    
+    result.prediction_throughput =
+        result.test_rows / (predict_time_ms / 1000.0);
 
     result.total_time_ms =
         result.train_time_ms +
-        result.predict_time_ms;
+        predict_time_ms;
 
     kmeans_destroy(km);
 

@@ -12,7 +12,7 @@ void write_results_csv(
         << "TrainRows,"
         << "TestRows,"
         << "TrainTime(ms),"
-        << "PredictTime(ms),"
+        << "PredictionThroughput(ops),"
         << "TotalTime(ms),"
         << "GPUAvg,"
         << "GPUPeak\n";
@@ -23,7 +23,7 @@ void write_results_csv(
             << r.train_rows << ","
             << r.test_rows << ","
             << r.train_time_ms << ","
-            << r.predict_time_ms << ","
+            << r.prediction_throughput << ","
             << r.total_time_ms << ","
             << r.gpu_util_avg << ","
             << r.gpu_util_peak

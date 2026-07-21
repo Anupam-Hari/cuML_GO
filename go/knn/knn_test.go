@@ -1,4 +1,4 @@
-package randomforest
+package knn
 
 import (
 	"testing"
@@ -14,7 +14,7 @@ var maxRows = flag.Int(
 	"Maximum number of dataset rows",
 )
 
-func TestRandomForestProcessedDataset(t *testing.T) {
+func TestKNNProcessedDataset(t *testing.T) {
 
 	wd, _ := os.Getwd()
 	t.Log("Working directory:", wd)
@@ -28,20 +28,19 @@ func TestRandomForestProcessedDataset(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rf, err := New(
-		WithEstimators(100),
-		WithMaxDepth(16),
+	knn, err := New(
+		WithK(5),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer rf.Close()
+	defer knn.Close()
 
-	if err := rf.Fit(X, y); err != nil {
+	if err := knn.Fit(X, y); err != nil {
 		t.Fatal(err)
 	}
 
-	pred, err := rf.Predict(X)
+	pred, err := knn.Predict(X)
 	if err != nil {
 		t.Fatal(err)
 	}
