@@ -4,6 +4,7 @@ project(cuml_go LANGUAGES CXX CUDA)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(NVML_LIBRARY /usr/lib/x86_64-linux-gnu/libnvidia-ml.so)
 
 find_package(cuml CONFIG REQUIRED)
 find_package(raft CONFIG REQUIRED)
@@ -17,11 +18,13 @@ add_library(cumlgo SHARED
     cpp/kmeans/kmeans.cpp
     cpp/knn/knn.cpp
     cpp/common/cuda_utils.cpp
+    cpp/gpu_monitor/gpu_monitor.cpp
 )
 
 target_link_libraries(cumlgo
     PRIVATE
         cuml::cuml
+        ${NVML_LIBRARY}
 )
 
 add_executable(test_cuml

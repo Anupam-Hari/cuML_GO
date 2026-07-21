@@ -4,6 +4,7 @@ import (
 	"github.com/Anupam-Hari/cuml-go/go/random_forest"
 	"github.com/Anupam-Hari/cuml-go/go/knn"
 	"github.com/Anupam-Hari/cuml-go/go/kmeans"
+	"github.com/Anupam-Hari/cuml-go/go/internal/capi"
 )
 
 func BenchmarkRandomForest(dataset Dataset) (BenchmarkResult, error) {
@@ -28,8 +29,12 @@ func BenchmarkRandomForest(dataset Dataset) (BenchmarkResult, error) {
 	}
 	defer rf.Close()
 
+	monitor, _ := capi.NewGPUMonitor()
+	defer monitor.Close()
+
 	timer := Timer{}
 
+	monitor.Start()
 	timer.Start()
 
 	err = rf.Fit(
@@ -50,6 +55,10 @@ func BenchmarkRandomForest(dataset Dataset) (BenchmarkResult, error) {
 	}
 
 	predictTimeMS := timer.Stop()
+	monitor.Stop()
+
+	result.GPUAvg = monitor.Average()
+	result.GPUPeak = monitor.Peak()
 
 	result.PredictionThroughput =
 		float64(result.TestRows) /
@@ -81,7 +90,10 @@ func BenchmarkKNN(dataset Dataset) (BenchmarkResult, error) {
 	defer knn.Close()
 
 	timer := Timer{}
+	monitor, _ := capi.NewGPUMonitor()
+	defer monitor.Close()
 
+	monitor.Start()
 	timer.Start()
 
 	err = knn.Fit(
@@ -102,6 +114,11 @@ func BenchmarkKNN(dataset Dataset) (BenchmarkResult, error) {
 	}
 
 	predictTimeMS := timer.Stop()
+
+	monitor.Stop()
+
+	result.GPUAvg = monitor.Average()
+	result.GPUPeak = monitor.Peak()
 
 	result.PredictionThroughput =
 		float64(result.TestRows) /
@@ -141,6 +158,11 @@ func BenchmarkKMeans(dataset Dataset) (BenchmarkResult, error) {
 
 	timer := Timer{}
 
+	monitor, _ := capi.NewGPUMonitor()
+	defer monitor.Close()
+
+	monitor.Start()
+
 	timer.Start()
 
 	err = kmeans.Fit(split.XTrain)
@@ -158,6 +180,11 @@ func BenchmarkKMeans(dataset Dataset) (BenchmarkResult, error) {
 	}
 
 	predictTimeMS := timer.Stop()
+
+	monitor.Stop()
+
+	result.GPUAvg = monitor.Average()
+	result.GPUPeak = monitor.Peak()
 
 	result.PredictionThroughput =
 		float64(result.TestRows) /
