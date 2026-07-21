@@ -25,8 +25,12 @@ target_link_libraries(cumlgo
 )
 
 add_executable(test_cuml
-    cpp/main.cpp
-    benchmark/dataset/dataset.cpp
+    benchmark/main.cpp
+
+    benchmark/benchmark.cpp
+    benchmark/utils/csv_writer.cpp
+
+    benchmark/data/dataset_loader.cpp
 )
 
 target_include_directories(test_cuml

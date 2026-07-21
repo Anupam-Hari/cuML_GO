@@ -2,14 +2,14 @@
 #include <vector>
 
 #include "knn/knn.h"
-#include "dataset/dataset.h"
+#include "data/dataset_loader.h"
 
 void test_knn()
 {
     constexpr int rows = 150;
     constexpr int cols = 4;
 
-    Dataset dataset = load_csv("benchmark/data/iris.csv");
+    Dataset dataset = load_dataset("benchmark/data/processed_network_traffic.csv", "is_malicious");
 
     KNNHandle* knn = knn_create(5);
 
