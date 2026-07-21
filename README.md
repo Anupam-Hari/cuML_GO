@@ -62,6 +62,10 @@ cuml-go/
 │   ├── random_forest/
 │   ├── knn/
 │   └── kmeans/
+|
+├── scripts/
+│   ├── build.sh
+│   ├── configure.sh
 │
 ├── go/
 │   ├── main.go
@@ -80,7 +84,6 @@ cuml-go/
 │   ├── knn/
 │   └── kmeans/
 │
-├── build/
 ├── CMakeLists.txt
 └── go.mod
 ```
@@ -409,33 +412,45 @@ These functions directly invoke C.
 
 # Build Instructions
 
-## Configure
+## 1. Activate the RAPIDS Environment
+
+Before building or running the project, activate the RAPIDS C++ conda environment.
 
 ```bash
-mkdir -p build
-
-cd build
-
-cmake .. \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+conda activate rapids-cpp
 ```
 
 ---
 
-## Build
+## 2. Configure the Project
+
+Run the provided configuration script from the project root.
 
 ```bash
-cmake --build . -j$(nproc)
+./scripts/configure.sh
 ```
 
-This produces
+This configures the CMake build directory and locates the required RAPIDS, CUDA, and C++ dependencies.
+
+---
+
+## 3. Build
+
+Compile the project using the build script.
+
+```bash
+./scripts/build.sh
+```
+
+This builds the shared library and all C++ executables.
+
+The generated artifacts are placed in the `build/` directory, including:
 
 ```
 build/libcumlgo.so
 ```
 
-used by cgo.
+which is used by the Go cgo wrappers.
 
 ---
 
@@ -444,7 +459,7 @@ used by cgo.
 From project root
 
 ```bash
-./build/benchmark
+./build/test_cuml
 ```
 
 Outputs benchmark timings for
@@ -487,16 +502,6 @@ Limit dataset size
 go test -v ./go/random_forest -args -rows=5000
 ```
 
-Examples
-
-```bash
-go test -v ./go/random_forest -args -rows=10000
-
-go test -v ./go/knn -args -rows=50000
-
-go test -v ./go/kmeans -args -rows=-1
-```
-
 ---
 
 # Running Go Benchmark
@@ -513,16 +518,6 @@ Run on subset
 go run ./go -rows=5000
 ```
 
-Examples
-
-```bash
-go run ./go -rows=10000
-
-go run ./go -rows=50000
-
-go run ./go
-```
-
 Results are automatically written to
 
 ```
@@ -533,12 +528,6 @@ Example output
 
 ```
 go_benchmark_210726155230.csv
-```
-
-Timestamp format
-
-```
-DDMMYYHHMMSS
 ```
 
 ---
