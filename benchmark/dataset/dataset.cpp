@@ -69,3 +69,19 @@ Dataset load_csv(const std::string& filename, bool has_header)
 
     return dataset;
 }
+
+std::vector<float> transpose(
+        const std::vector<float>& X,
+        int rows,
+        int cols)
+    {
+        std::vector<float> out(rows * cols);
+
+        for (int r = 0; r < rows; ++r) {
+            for (int c = 0; c < cols; ++c) {
+                out[c * rows + r] = X[r * cols + c];
+            }
+        }
+
+        return out;
+    }

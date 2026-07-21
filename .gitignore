@@ -6,6 +6,7 @@ build/
 *.out
 
 CMakeFiles/
+benchmark/data/*
 CMakeCache.txt
 cmake_install.cmake
 Makefile

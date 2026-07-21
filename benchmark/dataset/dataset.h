@@ -12,6 +12,11 @@ struct Dataset {
     int classes = 0;
 };
 
+std::vector<float> transpose(
+    const std::vector<float>& X,
+    int rows,
+    int cols);
+
 Dataset load_csv(
     const std::string& filename,
     bool has_header = true
