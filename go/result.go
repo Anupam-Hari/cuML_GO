@@ -7,6 +7,7 @@ type BenchmarkResult struct {
 	TrainTimeMS            float64
 	TotalTimeMS            float64
 	PredictionThroughput   float64
+	Accuracy float64
 	GPUAvg  float64
 	GPUPeak float64
 }

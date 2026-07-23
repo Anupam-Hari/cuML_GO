@@ -6,7 +6,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
-	"time"
+	// "time"
 
 	"github.com/Anupam-Hari/cuml-go/go/internal/dataset"
 )
@@ -38,6 +38,7 @@ func printResult(r BenchmarkResult) {
 	fmt.Printf("Test Rows             : %d\n", r.TestRows)
 	fmt.Printf("Training Time         : %.3f ms\n", r.TrainTimeMS)
 	fmt.Printf("Total Time            : %.3f ms\n", r.TotalTimeMS)
+	fmt.Printf("Accuracy              : %.2f%%\n", r.Accuracy*100)
 	fmt.Printf("Prediction Throughput : %.2f samples/sec\n",
 		r.PredictionThroughput)
 }
@@ -99,15 +100,15 @@ func main() {
 		printResult(km)
 	}
 
-	timestamp := time.Now().Format("020106150405")
-	filename := fmt.Sprintf(
-		"go/results/go_run_%s.csv",
-		timestamp,
-	)
+	// timestamp := time.Now().Format("020106150405")
+	// filename := fmt.Sprintf(
+	// 	"go/results/go_run_%s.csv",
+	// 	timestamp,
+	// )
 
-	if err := WriteResultsCSV(filename, allResults); err != nil {
-		log.Fatal(err)
-	}
+	// if err := WriteResultsCSV(filename, allResults); err != nil {
+	// 	log.Fatal(err)
+	// }
 
-	fmt.Printf("\nResults written to %s\n", filename)
+	// fmt.Printf("\nResults written to %s\n", filename)
 }

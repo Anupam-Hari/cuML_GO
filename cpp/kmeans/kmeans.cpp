@@ -5,6 +5,7 @@
 #include <cuml/cluster/kmeans.hpp>
 #include <raft/core/handle.hpp>
 #include <rmm/cuda_stream_pool.hpp>
+#include <raft/random/rng_state.hpp>
 
 #include <vector>
 #include <memory>
@@ -44,6 +45,7 @@ KMeansHandle* kmeans_create(
     km->params.n_clusters = n_clusters;
     km->params.max_iter   = max_iters;
     km->params.tol        = tolerance;
+    km->params.rng_state = raft::random::RngState(42, raft::random::GeneratorType::GenPhilox);
 
     return km;
 }

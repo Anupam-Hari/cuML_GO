@@ -49,13 +49,23 @@ func BenchmarkRandomForest(dataset Dataset) (BenchmarkResult, error) {
 
 	timer.Start()
 
-	_, err = rf.Predict(split.XTest)
+	pred, err := rf.Predict(split.XTest)
 	if err != nil {
 		return result, err
 	}
 
 	predictTimeMS := timer.Stop()
 	monitor.Stop()
+
+	correct := 0
+	for i := range pred {
+		if pred[i] == split.YTest[i] {
+			correct++
+		}
+	}
+
+	accuracy := float64(correct) / float64(len(split.YTest))
+	result.Accuracy = accuracy
 
 	result.GPUAvg = monitor.Average()
 	result.GPUPeak = monitor.Peak()
@@ -108,7 +118,7 @@ func BenchmarkKNN(dataset Dataset) (BenchmarkResult, error) {
 
 	timer.Start()
 
-	_, err = knn.Predict(split.XTest)
+	pred, err := knn.Predict(split.XTest)
 	if err != nil {
 		return result, err
 	}
@@ -116,6 +126,17 @@ func BenchmarkKNN(dataset Dataset) (BenchmarkResult, error) {
 	predictTimeMS := timer.Stop()
 
 	monitor.Stop()
+
+	correct := 0
+	for i := range pred {
+		if pred[i] == split.YTest[i] {
+			correct++
+		}
+	}
+
+	accuracy := float64(correct) / float64(len(split.YTest))
+
+	result.Accuracy = accuracy
 
 	result.GPUAvg = monitor.Average()
 	result.GPUPeak = monitor.Peak()
@@ -148,7 +169,7 @@ func BenchmarkKMeans(dataset Dataset) (BenchmarkResult, error) {
 
 	kmeans, err := kmeans.New(
 		kmeans.WithNClusters(nClasses),
-		kmeans.WithMaxIters(8),
+		kmeans.WithMaxIters(300),
 		kmeans.WithTolerance(1e-4),
 	)
 	if err != nil {

@@ -414,10 +414,10 @@ These functions directly invoke C.
 
 ## 1. Activate the RAPIDS Environment
 
-Before building or running the project, activate the RAPIDS C++ conda environment.
+Before building or running the project, activate and source the RAPIDS C++ conda environment.
 
 ```bash
-conda activate rapids-cpp
+source scripts/env.sh
 ```
 
 ---

@@ -3,6 +3,7 @@
 #include "../common/cuda_utils.hpp"
 #include <cuml/ensemble/randomforest.hpp>
 #include <raft/core/handle.hpp>
+#include <cmath>
 #include <rmm/cuda_stream_pool.hpp>
 
 struct RFHandle {
@@ -12,7 +13,7 @@ struct RFHandle {
     ML::RandomForestClassifierF* forest;
 
     RFHandle()
-        : stream_pool(std::make_shared<rmm::cuda_stream_pool>(1)),
+        : stream_pool(std::make_shared<rmm::cuda_stream_pool>(4)),
           handle(rmm::cuda_stream_per_thread, stream_pool),
           forest(nullptr)
     {
@@ -34,17 +35,17 @@ RFHandle* rf_create(
         max_depth,
         max_leaves,
         max_features,
-        128,                     // max_n_bins
-        1,                       // min_samples_leaf
-        2,                       // min_samples_split
-        0.0f,                    // min_impurity_decrease
-        true,                    // bootstrap
+        128,
+        1,
+        2,
+        0.0f,
+        true,
         n_estimators,
         max_samples,
-        0,                       // seed
+        42,                     // same random_state
         ML::CRITERION::GINI,
-        1,                       // n_streams
-        4096                     // max_batch_size
+        4,                      // same n_streams
+        4096
     );
 
     return rf;
@@ -79,6 +80,11 @@ int rf_fit(
             y,
             rows * sizeof(int));
 
+        // Match Python cuML's max_features="sqrt"
+        handle->params.tree_params.max_features =
+            std::sqrt(static_cast<float>(cols)) /
+            static_cast<float>(cols);
+
         ML::fit(
 	    handle->handle,
 	    handle->forest,
@@ -105,7 +111,7 @@ int rf_fit(
         cuda_utils::Free(d_y);
 
         return -1;
-    }
+    }   
     catch (...)
     {
         std::cerr << "rf_fit unknown exception"
