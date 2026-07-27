@@ -6,7 +6,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
-	// "time"
+	"time"
 
 	"github.com/Anupam-Hari/cuml-go/go/internal/dataset"
 )
@@ -100,15 +100,15 @@ func main() {
 		printResult(km)
 	}
 
-	// timestamp := time.Now().Format("020106150405")
-	// filename := fmt.Sprintf(
-	// 	"go/results/go_run_%s.csv",
-	// 	timestamp,
-	// )
+	timestamp := time.Now().Format("020106150405")
+	filename := fmt.Sprintf(
+		"go/results/go_run_%s.csv",
+		timestamp,
+	)
 
-	// if err := WriteResultsCSV(filename, allResults); err != nil {
-	// 	log.Fatal(err)
-	// }
+	if err := WriteResultsCSV(filename, allResults); err != nil {
+		log.Fatal(err)
+	}
 
-	// fmt.Printf("\nResults written to %s\n", filename)
+	fmt.Printf("\nResults written to %s\n", filename)
 }

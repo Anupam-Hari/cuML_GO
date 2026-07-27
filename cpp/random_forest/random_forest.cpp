@@ -9,15 +9,9 @@
 struct RFHandle {
     std::shared_ptr<rmm::cuda_stream_pool> stream_pool;
     raft::handle_t handle;
+
     ML::RF_params params;
     ML::RandomForestClassifierF* forest;
-
-    RFHandle()
-        : stream_pool(std::make_shared<rmm::cuda_stream_pool>(4)),
-          handle(rmm::cuda_stream_per_thread, stream_pool),
-          forest(nullptr)
-    {
-    }
 };
 
 RFHandle* rf_create(
@@ -28,6 +22,13 @@ RFHandle* rf_create(
     float max_samples)
 {
     auto* rf = new RFHandle;
+
+    rf->stream_pool = std::make_shared<rmm::cuda_stream_pool>(4);
+
+    new (&rf->handle) raft::handle_t(
+        rmm::cuda_stream_per_thread,
+        rf->stream_pool
+    );
 
     rf->forest = new ML::RandomForestClassifierF();
 
@@ -70,9 +71,18 @@ int rf_fit(
         d_y = static_cast<int*>(
             cuda_utils::Malloc(rows * sizeof(int)));
 
+        std::vector<float> X_col(rows * cols);
+
+        for (int r = 0; r < rows; ++r) {
+            for (int c = 0; c < cols; ++c) {
+                X_col[c * rows + r] = X[r * cols + c];
+            }
+        }
+
+
         cuda_utils::CopyHostToDevice(
             d_X,
-            X,
+            X_col.data(),
             rows * cols * sizeof(float));
 
         cuda_utils::CopyHostToDevice(
@@ -86,15 +96,15 @@ int rf_fit(
             static_cast<float>(cols);
 
         ML::fit(
-	    handle->handle,
-	    handle->forest,
-	    d_X,
-	    rows,
-	    cols,
-	    d_y,
-	    n_classes,
-	    handle->params
-	);
+            handle->handle,
+            handle->forest,
+            d_X,
+            rows,
+            cols,
+            d_y,
+            n_classes,
+            handle->params
+        );
 
         cuda_utils::Free(d_X);
         cuda_utils::Free(d_y);
@@ -158,7 +168,8 @@ int rf_predict(
         cuda_utils::CopyDeviceToHost(
             predictions,
             d_predictions,
-            rows * sizeof(int));
+            rows * sizeof(int)
+        );
 
         cuda_utils::Free(d_X);
         cuda_utils::Free(d_predictions);

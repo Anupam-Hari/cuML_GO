@@ -4,11 +4,11 @@ project(cuml_go LANGUAGES CXX CUDA)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 set(NVML_LIBRARY /usr/lib/x86_64-linux-gnu/libnvidia-ml.so)
 
 find_package(cuml CONFIG REQUIRED)
 find_package(raft CONFIG REQUIRED)
-find_package(Treelite CONFIG REQUIRED)
 
 set(CMAKE_SHARED_LINKER_FLAGS
     "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--no-as-needed")
@@ -21,28 +21,27 @@ add_library(cumlgo SHARED
     cpp/gpu_monitor/gpu_monitor.cpp
 )
 
-target_link_libraries(cumlgo
-    PRIVATE
-        cuml::cuml
-        ${NVML_LIBRARY}
+target_include_directories(cumlgo PRIVATE
+    ${CMAKE_SOURCE_DIR}/cpp
+)
+
+target_link_libraries(cumlgo PRIVATE
+    cuml::cuml
+    ${NVML_LIBRARY}
 )
 
 add_executable(test_cuml
     benchmark/main.cpp
-
     benchmark/benchmark.cpp
     benchmark/utils/csv_writer.cpp
-
     benchmark/data/dataset_loader.cpp
 )
 
-target_include_directories(test_cuml
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/cpp
-        ${CMAKE_SOURCE_DIR}/benchmark
+target_include_directories(test_cuml PRIVATE
+    ${CMAKE_SOURCE_DIR}/cpp
+    ${CMAKE_SOURCE_DIR}/benchmark
 )
 
-target_link_libraries(test_cuml
-    PRIVATE
-        cumlgo
+target_link_libraries(test_cuml PRIVATE
+    cumlgo
 )
