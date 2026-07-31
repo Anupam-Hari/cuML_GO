@@ -5,13 +5,22 @@
 #include <raft/core/handle.hpp>
 #include <cmath>
 #include <rmm/cuda_stream_pool.hpp>
+#include <nvforest/treelite_importer.hpp>
+#include <nvforest/forest_model.hpp>
+#include <treelite/c_api.h>
+#include <optional>
+#include <vector>
+#include <cuda_runtime.h>
+#include <memory>
 
 struct RFHandle {
     std::shared_ptr<rmm::cuda_stream_pool> stream_pool;
     raft::handle_t handle;
 
     ML::RF_params params;
-    ML::RandomForestClassifierF* forest;
+    TreeliteModelHandle tl_model = nullptr;
+    std::optional<nvforest::forest_model> forest;
+    int n_classes = 0;
 };
 
 RFHandle* rf_create(
@@ -29,8 +38,6 @@ RFHandle* rf_create(
         rmm::cuda_stream_per_thread,
         rf->stream_pool
     );
-
-    rf->forest = new ML::RandomForestClassifierF();
 
     rf->params = ML::set_rf_params(
         max_depth,
@@ -62,6 +69,10 @@ int rf_fit(
 {
     float* d_X = nullptr;
     int* d_y = nullptr;
+    handle->n_classes = n_classes;
+
+    int device;
+    cudaGetDevice(&device);
 
     try
     {
@@ -95,15 +106,32 @@ int rf_fit(
             std::sqrt(static_cast<float>(cols)) /
             static_cast<float>(cols);
 
-        ML::fit(
+        float* feature_importances = nullptr;
+
+        ML::fit_treelite(
             handle->handle,
-            handle->forest,
+            &handle->tl_model,
             d_X,
             rows,
             cols,
             d_y,
             n_classes,
-            handle->params
+            handle->params,
+            nullptr,
+            feature_importances,
+            rapids_logger::level_enum::info
+        );
+
+        handle->forest.emplace(
+            nvforest::import_from_treelite_handle(
+                handle->tl_model,
+                nvforest::preferred_tree_layout,
+                0,
+                std::nullopt,
+                raft_proto::device_type::gpu,
+                device,
+                handle->handle.get_stream().value()
+            )
         );
 
         cuda_utils::Free(d_X);
@@ -142,34 +170,62 @@ int rf_predict(
     int* predictions)
 {
     float* d_X = nullptr;
-    int* d_predictions = nullptr;
+    float* d_predictions = nullptr;
 
     try
     {
         d_X = static_cast<float*>(
             cuda_utils::Malloc(rows * cols * sizeof(float)));
 
-        d_predictions = static_cast<int*>(
-            cuda_utils::Malloc(rows * sizeof(int)));
+        d_predictions = static_cast<float*>(cuda_utils::Malloc(rows * handle->n_classes * sizeof(float)));
 
         cuda_utils::CopyHostToDevice(
             d_X,
             X,
             rows * cols * sizeof(float));
 
-        ML::predict(
-            handle->handle,
-            handle->forest,
+        if (!handle->forest.has_value()) {
+            cuda_utils::Free(d_X);
+            cuda_utils::Free(d_predictions);
+            return -1;
+        }
+
+        handle->forest->predict(
+            raft_proto::handle_t(handle->handle),
+            d_predictions,
             d_X,
             rows,
-            cols,
-            d_predictions);
+            raft_proto::device_type::gpu,
+            raft_proto::device_type::gpu
+        );
+
+        std::vector<float> h_predictions(rows * handle->n_classes);
 
         cuda_utils::CopyDeviceToHost(
-            predictions,
+            h_predictions.data(),
             d_predictions,
-            rows * sizeof(int)
+            rows * handle->n_classes * sizeof(float)
         );
+
+        for (int r = 0; r < rows; ++r) {
+
+            int best = 0;
+            float best_score =
+                h_predictions[r * handle->n_classes];
+
+            for (int c = 1; c < handle->n_classes; ++c) {
+
+                float score =
+                    h_predictions[r * handle->n_classes + c];
+
+                if (score > best_score) {
+                    best_score = score;
+                    best = c;
+                }
+            }
+
+            predictions[r] = best;
+        }
 
         cuda_utils::Free(d_X);
         cuda_utils::Free(d_predictions);
@@ -208,9 +264,8 @@ void rf_destroy(RFHandle* rf)
         return;
 
 
-    if (rf->forest != nullptr) {
-        ML::delete_rf_metadata(rf->forest);
-    }
+    if (rf->tl_model != nullptr)
+        TreeliteFreeModel(rf->tl_model);
 
     delete rf;
 }

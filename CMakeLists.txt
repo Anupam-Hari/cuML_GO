@@ -1,17 +1,12 @@
-cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 3.30)
 
 project(cuml_go LANGUAGES CXX CUDA)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(NVML_LIBRARY /usr/lib/x86_64-linux-gnu/libnvidia-ml.so)
-
 find_package(cuml CONFIG REQUIRED)
 find_package(raft CONFIG REQUIRED)
-
-set(CMAKE_SHARED_LINKER_FLAGS
-    "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--no-as-needed")
 
 add_library(cumlgo SHARED
     cpp/random_forest/random_forest.cpp
@@ -26,8 +21,8 @@ target_include_directories(cumlgo PRIVATE
 )
 
 target_link_libraries(cumlgo PRIVATE
+    PRIVATE
     cuml::cuml
-    ${NVML_LIBRARY}
 )
 
 add_executable(test_cuml
