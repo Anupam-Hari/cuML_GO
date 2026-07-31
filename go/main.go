@@ -85,6 +85,13 @@ func main() {
 		allResults = append(allResults, rf)
 		printResult(rf)
 
+		rfCPU, err := BenchmarkGoLearnRandomForest(ds)
+		if err != nil {
+			log.Fatal(err)
+		}
+		allResults = append(allResults, rfCPU)
+		printResult(rfCPU)
+
 		knn, err := BenchmarkKNN(ds)
 		if err != nil {
 			log.Fatal(err)

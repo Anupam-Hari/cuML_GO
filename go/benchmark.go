@@ -1,10 +1,13 @@
 package main
 
 import (
+	"github.com/sjwhitworth/golearn/ensemble"
+    "github.com/sjwhitworth/golearn/evaluation"
 	"github.com/Anupam-Hari/cuml-go/go/random_forest"
 	"github.com/Anupam-Hari/cuml-go/go/knn"
 	"github.com/Anupam-Hari/cuml-go/go/kmeans"
 	"github.com/Anupam-Hari/cuml-go/go/internal/capi"
+	"github.com/Anupam-Hari/cuml-go/go/internal/dataset"
 )
 
 func BenchmarkRandomForest(dataset Dataset) (BenchmarkResult, error) {
@@ -77,6 +80,77 @@ func BenchmarkRandomForest(dataset Dataset) (BenchmarkResult, error) {
 	result.TotalTimeMS =
 		result.TrainTimeMS +
 			predictTimeMS
+
+	return result, nil
+}
+
+func BenchmarkGoLearnRandomForest(dataset Dataset) (BenchmarkResult, error) {
+
+	split := SplitDataset(dataset, 0.8)
+
+	result := BenchmarkResult{
+		Model:     "GoLearn Random Forest",
+		TrainRows: split.TrainRows,
+		TestRows:  split.TestRows,
+	}
+
+	trainData, err := dataset.ToGoLearnInstances(
+		split.XTrain,
+		split.YTrain,
+	)
+	if err != nil {
+		return result, err
+	}
+
+	testData, err := dataset.ToGoLearnInstances(
+		split.XTest,
+		split.YTest,
+	)
+	if err != nil {
+		return result, err
+	}
+
+	rf := ensemble.NewRandomForest(
+		100, // trees
+		3,   // features considered per split
+	)
+
+	timer := Timer{}
+	timer.Start()
+
+	err = rf.Fit(trainData)
+	if err != nil {
+		return result, err
+	}
+
+	result.TrainTimeMS = timer.Stop()
+
+	timer.Start()
+
+	predictions, err := rf.Predict(testData)
+	if err != nil {
+		return result, err
+	}
+
+	predictTimeMS := timer.Stop()
+
+	cm, err := evaluation.GetConfusionMatrix(
+		testData,
+		predictions,
+	)
+	if err != nil {
+		return result, err
+	}
+
+	result.Accuracy = evaluation.GetAccuracy(cm)
+
+	result.PredictionThroughput =
+		float64(result.TestRows) /
+		(predictTimeMS / 1000.0)
+
+	result.TotalTimeMS =
+		result.TrainTimeMS +
+		predictTimeMS
 
 	return result, nil
 }
