@@ -2,7 +2,7 @@ package main
 
 import (
 	"os"
-	//"fmt"
+	"math"
 
 	"github.com/sjwhitworth/golearn/base"
 	"github.com/sjwhitworth/golearn/ensemble"
@@ -165,9 +165,11 @@ func BenchmarkGoLearnRandomForest(dataset Dataset) (BenchmarkResult, error) {
 		return result, err
 	}
 
+	mtry := int(math.Sqrt(float64(len(split.XTrain[0]))))
+
 	rf := ensemble.NewRandomForest(
 		100, // trees
-		3,   // features considered per split
+		mtry,   // features considered per split
 	)
 	cpuMonitor, _ := capi.NewCPUMonitor()
 	defer cpuMonitor.Close()

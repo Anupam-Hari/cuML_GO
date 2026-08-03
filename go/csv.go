@@ -195,9 +195,10 @@ func WriteSummaryCSV(rawCSV, summaryCSV string) error {
 		"AvgGPUPeak",
 	})
 
-	for _, key := range summary {
+	for _, key := range keys {
 
 		s := summary[key]
+
 		record := []string{
 			key.Model,
 			fmt.Sprintf("%d", key.TrainRows),
