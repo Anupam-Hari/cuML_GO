@@ -1,13 +1,18 @@
 package main
 
 import (
+	"os"
+	//"fmt"
+
+	"github.com/sjwhitworth/golearn/base"
 	"github.com/sjwhitworth/golearn/ensemble"
-    "github.com/sjwhitworth/golearn/evaluation"
-	"github.com/Anupam-Hari/cuml-go/go/random_forest"
-	"github.com/Anupam-Hari/cuml-go/go/knn"
-	"github.com/Anupam-Hari/cuml-go/go/kmeans"
+	"github.com/sjwhitworth/golearn/evaluation"
+
 	"github.com/Anupam-Hari/cuml-go/go/internal/capi"
-	"github.com/Anupam-Hari/cuml-go/go/internal/dataset"
+	datasetpkg "github.com/Anupam-Hari/cuml-go/go/internal/dataset"
+	"github.com/Anupam-Hari/cuml-go/go/kmeans"
+	"github.com/Anupam-Hari/cuml-go/go/knn"
+	"github.com/Anupam-Hari/cuml-go/go/random_forest"
 )
 
 func BenchmarkRandomForest(dataset Dataset) (BenchmarkResult, error) {
@@ -94,7 +99,11 @@ func BenchmarkGoLearnRandomForest(dataset Dataset) (BenchmarkResult, error) {
 		TestRows:  split.TestRows,
 	}
 
-	trainData, err := dataset.ToGoLearnInstances(
+	trainFile := "golearn_train_tmp.csv"
+	testFile := "golearn_test_tmp.csv"
+
+	err := datasetpkg.WriteGoLearnCSV(
+		trainFile,
 		split.XTrain,
 		split.YTrain,
 	)
@@ -102,9 +111,46 @@ func BenchmarkGoLearnRandomForest(dataset Dataset) (BenchmarkResult, error) {
 		return result, err
 	}
 
-	testData, err := dataset.ToGoLearnInstances(
+	err = datasetpkg.WriteGoLearnCSV(
+		testFile,
 		split.XTest,
 		split.YTest,
+	)
+	if err != nil {
+		return result, err
+	}
+
+	defer os.Remove(trainFile)
+	defer os.Remove(testFile)
+
+	classAttr := base.NewCategoricalAttribute()
+	classAttr.SetName("class")
+
+	overrides := map[int]base.Attribute{
+		49: classAttr,
+	}
+
+	classGroups := map[string]string{
+		"class": "CLASS",
+	}
+
+	trainData, err := base.ParseCSVToInstancesWithAttributeGroups(
+		trainFile,
+		nil,
+		classGroups,
+		overrides,
+		true,
+	)
+	if err != nil {
+		return result, err
+	}
+
+	testData, err := base.ParseCSVToInstancesWithAttributeGroups(
+		testFile,
+		nil,
+		classGroups,
+		overrides,
+		true,
 	)
 	if err != nil {
 		return result, err

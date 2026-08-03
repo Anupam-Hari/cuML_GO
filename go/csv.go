@@ -22,6 +22,7 @@ func WriteResultsCSV(
 
 	header := []string{
 		"Model",
+		"Run",
 		"TrainRows",
 		"TestRows",
 		"TrainTime(ms)",
@@ -39,6 +40,7 @@ func WriteResultsCSV(
 
 		record := []string{
 			r.Model,
+			fmt.Sprintf("%d", r.Run),
 			fmt.Sprintf("%d", r.TrainRows),
 			fmt.Sprintf("%d", r.TestRows),
 			fmt.Sprintf("%.3f", r.TrainTimeMS),

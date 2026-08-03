@@ -2,6 +2,7 @@ package main
 
 type BenchmarkResult struct {
 	Model                  string
+	Run						int
 	TrainRows              int
 	TestRows               int
 	TrainTimeMS            float64

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math/rand"
 	"github.com/Anupam-Hari/cuml-go/go/internal/matrix"
 )
 
@@ -30,12 +31,34 @@ func SplitDataset(
 	trainRows := int(float32(dataset.Rows) * trainRatio)
 	testRows := dataset.Rows - trainRows
 
-	return TrainTestSplit{
-		XTrain: dataset.X[:trainRows],
-		YTrain: dataset.Y[:trainRows],
+	rng := rand.New(rand.NewSource(42))
 
-		XTest: dataset.X[trainRows:],
-		YTest: dataset.Y[trainRows:],
+	perm := rng.Perm(dataset.Rows)
+
+	xTrain := make([][]float32, trainRows)
+	yTrain := make([]int, trainRows)
+
+	xTest := make([][]float32, testRows)
+	yTest := make([]int, testRows)
+
+	for i := 0; i < trainRows; i++ {
+		idx := perm[i]
+		xTrain[i] = dataset.X[idx]
+		yTrain[i] = dataset.Y[idx]
+	}
+
+	for i := 0; i < testRows; i++ {
+		idx := perm[trainRows+i]
+		xTest[i] = dataset.X[idx]
+		yTest[i] = dataset.Y[idx]
+	}
+
+	return TrainTestSplit{
+		XTrain: xTrain,
+		YTrain: yTrain,
+
+		XTest: xTest,
+		YTest: yTest,
 
 		TrainRows: trainRows,
 		TestRows:  testRows,

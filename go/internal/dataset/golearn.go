@@ -36,27 +36,37 @@ func ToGoLearnInstances(
 		attrSpecs[i] = inst.AddAttribute(attrs[i])
 	}
 
-	classAttr := base.NewCategoricalAttribute("class")
-	classSpec := inst.AddClassAttribute(classAttr)
+	classAttr := base.NewCategoricalAttribute()
+	classAttr.SetName("class")
 
-	inst.Extend(nRows)
+	if err := inst.AddClassAttribute(classAttr); err != nil {
+		return nil, err
+	}
+
+	classSpec, err := inst.GetAttribute(classAttr)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := inst.Extend(nRows); err != nil {
+		return nil, err
+	}
 
 	for r := 0; r < nRows; r++ {
-
-		if len(X[r]) != nCols {
-			return nil, fmt.Errorf("row %d has inconsistent column count", r)
-		}
-
 		for c := 0; c < nCols; c++ {
-			inst.Set(attrSpecs[c], r, attrs[c].GetSysValFromFloat(float64(X[r][c])))
+			inst.Set(
+				attrSpecs[c],
+				r,
+				attrs[c].GetSysValFromString(
+					strconv.FormatFloat(float64(X[r][c]), 'f', -1, 32),
+				),
+			)
 		}
 
 		inst.Set(
 			classSpec,
 			r,
-			classAttr.GetSysValFromString(
-				strconv.Itoa(y[r]),
-			),
+			classAttr.GetSysValFromString(strconv.Itoa(y[r])),
 		)
 	}
 

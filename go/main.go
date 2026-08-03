@@ -17,6 +17,12 @@ var rowsFlag = flag.String(
 	"Comma-separated dataset row counts (e.g. 1000,5000,10000,-1)",
 )
 
+var repeatsFlag = flag.Int(
+	"repeats",
+	1,
+	"Number of benchmark repetitions",
+)
+
 func parseRows(s string) ([]int, error) {
 	parts := strings.Split(s, ",")
 	rows := make([]int, 0, len(parts))
@@ -54,57 +60,64 @@ func main() {
 	allResults := []BenchmarkResult{}
 
 	for _, maxRows := range rowSizes {
-		fmt.Printf("\n==============================\n")
-		fmt.Printf("Running benchmark for %d rows\n", maxRows)
-		fmt.Printf("==============================\n")
+		for run := 1; run <= *repeatsFlag; run++ {
+			fmt.Printf("\n==============================\n")
+			fmt.Printf("Run %d/%d\n", run, *repeatsFlag)
+			fmt.Printf("Running benchmark for %d rows\n", maxRows)
+			fmt.Printf("==============================\n")
 
-		X, y, err := dataset.LoadCSV(
-			"benchmark/data/processed_network_traffic.csv",
-			"is_malicious",
-			maxRows,
-		)
-		if err != nil {
-			log.Fatal(err)
+			X, y, err := dataset.LoadCSV(
+				"benchmark/data/processed_network_traffic.csv",
+				"is_malicious",
+				maxRows,
+			)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			ds := Dataset{
+				X:    X,
+				Y:    y,
+				Rows: len(X),
+				Cols: len(X[0]),
+			}
+
+			fmt.Printf("Dataset Loaded\n")
+			fmt.Printf("Rows : %d\n", ds.Rows)
+			fmt.Printf("Cols : %d\n", ds.Cols)
+
+			rf, err := BenchmarkRandomForest(ds)
+			if err != nil {
+				log.Fatal(err)
+			}
+			rf.Run = run
+			allResults = append(allResults, rf)
+			printResult(rf)
+
+			rfCPU, err := BenchmarkGoLearnRandomForest(ds)
+			if err != nil {
+				log.Fatal(err)
+			}
+			rfCPU.Run = run
+			allResults = append(allResults, rfCPU)
+			printResult(rfCPU)
+
+			knn, err := BenchmarkKNN(ds)
+			if err != nil {
+				log.Fatal(err)
+			}
+			knn.Run = run
+			allResults = append(allResults, knn)
+			printResult(knn)
+
+			km, err := BenchmarkKMeans(ds)
+			if err != nil {
+				log.Fatal(err)
+			}
+			km.Run = run
+			allResults = append(allResults, km)
+			printResult(km)
 		}
-
-		ds := Dataset{
-			X:    X,
-			Y:    y,
-			Rows: len(X),
-			Cols: len(X[0]),
-		}
-
-		fmt.Printf("Dataset Loaded\n")
-		fmt.Printf("Rows : %d\n", ds.Rows)
-		fmt.Printf("Cols : %d\n", ds.Cols)
-
-		rf, err := BenchmarkRandomForest(ds)
-		if err != nil {
-			log.Fatal(err)
-		}
-		allResults = append(allResults, rf)
-		printResult(rf)
-
-		rfCPU, err := BenchmarkGoLearnRandomForest(ds)
-		if err != nil {
-			log.Fatal(err)
-		}
-		allResults = append(allResults, rfCPU)
-		printResult(rfCPU)
-
-		knn, err := BenchmarkKNN(ds)
-		if err != nil {
-			log.Fatal(err)
-		}
-		allResults = append(allResults, knn)
-		printResult(knn)
-
-		km, err := BenchmarkKMeans(ds)
-		if err != nil {
-			log.Fatal(err)
-		}
-		allResults = append(allResults, km)
-		printResult(km)
 	}
 
 	timestamp := time.Now().Format("020106150405")
