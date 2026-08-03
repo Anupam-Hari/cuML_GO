@@ -11,4 +11,6 @@ type BenchmarkResult struct {
 	Accuracy float64
 	GPUAvg  float64
 	GPUPeak float64
+	CPUAvg  float64
+	CPUPeak float64
 }

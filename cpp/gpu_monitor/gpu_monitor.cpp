@@ -56,26 +56,27 @@ void GpuMonitor::stop()
 
 void GpuMonitor::monitor_loop()
 {
-    while (running_)
-    {
+    auto next = std::chrono::steady_clock::now();
+
+    while (running_) {
+
         nvmlUtilization_t util;
 
-        if (nvmlDeviceGetUtilizationRates(device_, &util) == NVML_SUCCESS)
-        {
+        if (nvmlDeviceGetUtilizationRates(device_, &util) == NVML_SUCCESS) {
+
             std::lock_guard<std::mutex> lock(mutex_);
 
             float value = static_cast<float>(util.gpu);
 
             sum_ += value;
-
             samples_++;
 
             if (value > peak_)
                 peak_ = value;
         }
 
-        std::this_thread::sleep_for(
-            std::chrono::milliseconds(100));
+        next += std::chrono::milliseconds(5);
+        std::this_thread::sleep_until(next);
     }
 }
 

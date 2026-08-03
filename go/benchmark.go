@@ -37,12 +37,17 @@ func BenchmarkRandomForest(dataset Dataset) (BenchmarkResult, error) {
 	}
 	defer rf.Close()
 
-	monitor, _ := capi.NewGPUMonitor()
-	defer monitor.Close()
+	cpuMonitor, _ := capi.NewCPUMonitor()
+	defer cpuMonitor.Close()
+
+	gpumonitor, _ := capi.NewGPUMonitor()
+	defer gpumonitor.Close()
 
 	timer := Timer{}
 
-	monitor.Start()
+	gpumonitor.Start()
+	cpuMonitor.Start()
+
 	timer.Start()
 
 	err = rf.Fit(
@@ -63,7 +68,8 @@ func BenchmarkRandomForest(dataset Dataset) (BenchmarkResult, error) {
 	}
 
 	predictTimeMS := timer.Stop()
-	monitor.Stop()
+	gpumonitor.Stop()
+	cpuMonitor.Stop()
 
 	correct := 0
 	for i := range pred {
@@ -75,8 +81,11 @@ func BenchmarkRandomForest(dataset Dataset) (BenchmarkResult, error) {
 	accuracy := float64(correct) / float64(len(split.YTest))
 	result.Accuracy = accuracy
 
-	result.GPUAvg = monitor.Average()
-	result.GPUPeak = monitor.Peak()
+	result.GPUAvg = gpumonitor.Average()
+	result.GPUPeak = gpumonitor.Peak()
+
+	result.CPUAvg = cpuMonitor.Average()
+	result.CPUPeak = cpuMonitor.Peak()
 
 	result.PredictionThroughput =
 		float64(result.TestRows) /
@@ -160,8 +169,12 @@ func BenchmarkGoLearnRandomForest(dataset Dataset) (BenchmarkResult, error) {
 		100, // trees
 		3,   // features considered per split
 	)
+	cpuMonitor, _ := capi.NewCPUMonitor()
+	defer cpuMonitor.Close()
 
 	timer := Timer{}
+	cpuMonitor.Start()
+
 	timer.Start()
 
 	err = rf.Fit(trainData)
@@ -180,6 +193,8 @@ func BenchmarkGoLearnRandomForest(dataset Dataset) (BenchmarkResult, error) {
 
 	predictTimeMS := timer.Stop()
 
+	cpuMonitor.Stop()
+
 	cm, err := evaluation.GetConfusionMatrix(
 		testData,
 		predictions,
@@ -187,6 +202,9 @@ func BenchmarkGoLearnRandomForest(dataset Dataset) (BenchmarkResult, error) {
 	if err != nil {
 		return result, err
 	}
+
+	result.CPUAvg = cpuMonitor.Average()
+	result.CPUPeak = cpuMonitor.Peak()
 
 	result.Accuracy = evaluation.GetAccuracy(cm)
 
@@ -220,10 +238,14 @@ func BenchmarkKNN(dataset Dataset) (BenchmarkResult, error) {
 	defer knn.Close()
 
 	timer := Timer{}
-	monitor, _ := capi.NewGPUMonitor()
-	defer monitor.Close()
+	gpumonitor, _ := capi.NewGPUMonitor()
+	defer gpumonitor.Close()
 
-	monitor.Start()
+	cpuMonitor, _ := capi.NewCPUMonitor()
+    defer cpuMonitor.Close()
+
+	gpumonitor.Start()
+	cpuMonitor.Start()
 	timer.Start()
 
 	err = knn.Fit(
@@ -245,7 +267,8 @@ func BenchmarkKNN(dataset Dataset) (BenchmarkResult, error) {
 
 	predictTimeMS := timer.Stop()
 
-	monitor.Stop()
+	gpumonitor.Stop()
+	cpuMonitor.Stop()
 
 	correct := 0
 	for i := range pred {
@@ -258,8 +281,11 @@ func BenchmarkKNN(dataset Dataset) (BenchmarkResult, error) {
 
 	result.Accuracy = accuracy
 
-	result.GPUAvg = monitor.Average()
-	result.GPUPeak = monitor.Peak()
+	result.GPUAvg = gpumonitor.Average()
+	result.GPUPeak = gpumonitor.Peak()
+
+	result.CPUAvg = cpuMonitor.Average()
+	result.CPUPeak = cpuMonitor.Peak()
 
 	result.PredictionThroughput =
 		float64(result.TestRows) /
@@ -299,10 +325,15 @@ func BenchmarkKMeans(dataset Dataset) (BenchmarkResult, error) {
 
 	timer := Timer{}
 
-	monitor, _ := capi.NewGPUMonitor()
-	defer monitor.Close()
+	cpuMonitor, _ := capi.NewCPUMonitor()
+	defer cpuMonitor.Close()
 
-	monitor.Start()
+	gpumonitor, _ := capi.NewGPUMonitor()
+	defer gpumonitor.Close()
+
+	cpuMonitor.Start()
+	gpumonitor.Start()
+	
 
 	timer.Start()
 
@@ -322,10 +353,14 @@ func BenchmarkKMeans(dataset Dataset) (BenchmarkResult, error) {
 
 	predictTimeMS := timer.Stop()
 
-	monitor.Stop()
+	gpumonitor.Stop()
+	cpuMonitor.Stop()
 
-	result.GPUAvg = monitor.Average()
-	result.GPUPeak = monitor.Peak()
+	result.GPUAvg = gpumonitor.Average()
+	result.GPUPeak = gpumonitor.Peak()
+
+	result.CPUAvg = cpuMonitor.Average()
+	result.CPUPeak = cpuMonitor.Peak()
 
 	result.PredictionThroughput =
 		float64(result.TestRows) /

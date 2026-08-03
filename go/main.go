@@ -57,34 +57,64 @@ func main() {
 		log.Fatal(err)
 	}
 
+	maxRows := 0
+	loadAll := false
+
+	for _, r := range rowSizes {
+		if r == -1 {
+			loadAll = true
+			break
+		}
+
+		if r > maxRows {
+			maxRows = r
+		}
+	}
+
+	rowsToLoad := maxRows
+	if loadAll {
+		rowsToLoad = -1
+	}
+
+	// Load the complete dataset once.
+	X, y, err := dataset.LoadCSV(
+		"benchmark/data/processed_network_traffic.csv",
+		"is_malicious",
+		rowsToLoad,
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fullRows := len(X)
+	fullCols := len(X[0])
+
+	fmt.Printf("Dataset Loaded\n")
+	fmt.Printf("Total Rows : %d\n", fullRows)
+	fmt.Printf("Cols       : %d\n", fullCols)
+
 	allResults := []BenchmarkResult{}
 
 	for _, maxRows := range rowSizes {
+
+		rows := maxRows
+		if rows < 0 || rows > fullRows {
+			rows = fullRows
+		}
+
+		ds := Dataset{
+			X:    X[:rows],
+			Y:    y[:rows],
+			Rows: rows,
+			Cols: fullCols,
+		}
+
 		for run := 1; run <= *repeatsFlag; run++ {
+
 			fmt.Printf("\n==============================\n")
 			fmt.Printf("Run %d/%d\n", run, *repeatsFlag)
-			fmt.Printf("Running benchmark for %d rows\n", maxRows)
+			fmt.Printf("Running benchmark for %d rows\n", rows)
 			fmt.Printf("==============================\n")
-
-			X, y, err := dataset.LoadCSV(
-				"benchmark/data/processed_network_traffic.csv",
-				"is_malicious",
-				maxRows,
-			)
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			ds := Dataset{
-				X:    X,
-				Y:    y,
-				Rows: len(X),
-				Cols: len(X[0]),
-			}
-
-			fmt.Printf("Dataset Loaded\n")
-			fmt.Printf("Rows : %d\n", ds.Rows)
-			fmt.Printf("Cols : %d\n", ds.Cols)
 
 			rf, err := BenchmarkRandomForest(ds)
 			if err != nil {
