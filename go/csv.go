@@ -82,13 +82,10 @@ func WriteResultsCSV(
 		}
 	}
 
-	if err := writer.Error(); err != nil {
-		return err
-	}
+	writer.Flush()
 
-	summaryFile := filename[:len(filename)-4] + "_summary.csv"
+	return writer.Error()
 
-	return WriteSummaryCSV(filename, summaryFile)
 }
 
 func WriteSummaryCSV(rawCSV, summaryCSV string) error {

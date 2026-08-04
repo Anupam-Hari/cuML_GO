@@ -160,5 +160,12 @@ func main() {
 		log.Fatal(err)
 	}
 
+	summaryFile := strings.TrimSuffix(filename, ".csv") + "_summary.csv"
+
+	if err := WriteSummaryCSV(filename, summaryFile); err != nil {
+		log.Fatal(err)
+	}
+
 	fmt.Printf("\nResults written to %s\n", filename)
+	fmt.Printf("Summary written to %s\n", summaryFile)
 }
