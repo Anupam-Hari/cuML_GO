@@ -285,12 +285,24 @@ int rf_predict(
     }
 }
 
-#include <iostream>
+int rf_save(
+    RFHandle* handle,
+    const char* filename)
+{
+    if (handle == nullptr || handle->tl_model == nullptr) {
+        return -1;
+    }
+
+    int status = TreeliteSerializeModelToFile(
+        handle->tl_model,
+        filename
+    );
+
+    return (status == 0) ? 0 : -1;
+}
 
 void rf_destroy(RFHandle* rf)
 {
-    std::cout << "destroy: begin\n";
-
     if (rf == nullptr)
         return;
 

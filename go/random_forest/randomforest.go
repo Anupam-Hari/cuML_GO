@@ -150,6 +150,17 @@ func (rf *RandomForest) Close() {
 	}
 }
 
+func (rf *RandomForest) Save(filename string) error {
+	if rf.handle == nil {
+		return fmt.Errorf("random forest is closed")
+	}
+
+	return capi.RandomForestSave(
+		rf.handle,
+		filename,
+	)
+}
+
 // Prevent accidental copying of a live model.
 func (rf *RandomForest) Handle() unsafe.Pointer {
 	return unsafe.Pointer(rf.handle)

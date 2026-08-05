@@ -35,6 +35,13 @@ int rf_predict(
     int backend
 );
 
+int rf_save(
+    RFHandle* handle,
+    const char* filename);
+
+RFHandle* rf_load(
+    const char* filename);
+
 #ifdef __cplusplus
 }
 #endif

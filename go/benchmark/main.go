@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Anupam-Hari/cuml-go/go/internal/dataset"
+	benchmarkutil "github.com/Anupam-Hari/cuml-go/go/internal/benchmark"
 )
 
 var rowsFlag = flag.String(
@@ -107,7 +108,7 @@ func main() {
 			rows = fullRows
 		}
 
-		ds := Dataset{
+		ds := benchmarkutil.Dataset{
 			X:    X[:rows],
 			Y:    y[:rows],
 			Rows: rows,

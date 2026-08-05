@@ -11,14 +11,15 @@ import (
 
 	"github.com/Anupam-Hari/cuml-go/go/internal/capi"
 	datasetpkg "github.com/Anupam-Hari/cuml-go/go/internal/dataset"
+	benchmarkutil "github.com/Anupam-Hari/cuml-go/go/internal/benchmark"
 	"github.com/Anupam-Hari/cuml-go/go/kmeans"
 	"github.com/Anupam-Hari/cuml-go/go/knn"
 	"github.com/Anupam-Hari/cuml-go/go/random_forest"
 )
 
-func BenchmarkRandomForest(dataset Dataset) (BenchmarkResult, error) {
+func BenchmarkRandomForest(dataset benchmarkutil.Dataset) (BenchmarkResult, error) {
 
-	split := SplitDataset(dataset, 0.8)
+	split := benchmarkutil.SplitDataset(dataset, 0.8)
 
 	result := BenchmarkResult{
 		Model:     "Random Forest",
@@ -44,7 +45,7 @@ func BenchmarkRandomForest(dataset Dataset) (BenchmarkResult, error) {
 	gpumonitor, _ := capi.NewGPUMonitor()
 	defer gpumonitor.Close()
 
-	timer := Timer{}
+	timer := benchmarkutil.Timer{}
 
 	gpumonitor.Start()
 	cpuMonitor.Start()
@@ -99,9 +100,9 @@ func BenchmarkRandomForest(dataset Dataset) (BenchmarkResult, error) {
 	return result, nil
 }
 
-func BenchmarkGoLearnRandomForest(dataset Dataset) (BenchmarkResult, error) {
+func BenchmarkGoLearnRandomForest(dataset benchmarkutil.Dataset) (BenchmarkResult, error) {
 
-	split := SplitDataset(dataset, 0.8)
+	split := benchmarkutil.SplitDataset(dataset, 0.8)
 
 	result := BenchmarkResult{
 		Model:     "GoLearn Random Forest",
@@ -175,7 +176,7 @@ func BenchmarkGoLearnRandomForest(dataset Dataset) (BenchmarkResult, error) {
 	cpuMonitor, _ := capi.NewCPUMonitor()
 	defer cpuMonitor.Close()
 
-	timer := Timer{}
+	timer := benchmarkutil.Timer{}
 	cpuMonitor.Start()
 
 	timer.Start()
@@ -222,9 +223,9 @@ func BenchmarkGoLearnRandomForest(dataset Dataset) (BenchmarkResult, error) {
 	return result, nil
 }
 
-func BenchmarkRFInference(dataset Dataset) (BenchmarkResult, error) {
+func BenchmarkRFInference(dataset benchmarkutil.Dataset) (BenchmarkResult, error) {
 
-	split := SplitDataset(dataset, 0.8)
+	split := benchmarkutil.SplitDataset(dataset, 0.8)
 
 	result := BenchmarkResult{
 		Model:     "Random Forest Inference",
@@ -244,7 +245,7 @@ func BenchmarkRFInference(dataset Dataset) (BenchmarkResult, error) {
 	}
 	defer rf.Close()
 
-	timer := Timer{}
+	timer := benchmarkutil.Timer{}
 
 	//-------------------------------------------------
 	// Train once
@@ -353,9 +354,9 @@ func BenchmarkRFInference(dataset Dataset) (BenchmarkResult, error) {
 	return result, nil
 }
 
-func BenchmarkKNN(dataset Dataset) (BenchmarkResult, error) {
+func BenchmarkKNN(dataset benchmarkutil.Dataset) (BenchmarkResult, error) {
 
-	split := SplitDataset(dataset, 0.8)
+	split := benchmarkutil.SplitDataset(dataset, 0.8)
 
 	result := BenchmarkResult{
 		Model:     "KNN",
@@ -371,7 +372,7 @@ func BenchmarkKNN(dataset Dataset) (BenchmarkResult, error) {
 	}
 	defer knn.Close()
 
-	timer := Timer{}
+	timer := benchmarkutil.Timer{}
 	gpumonitor, _ := capi.NewGPUMonitor()
 	defer gpumonitor.Close()
 
@@ -432,9 +433,9 @@ func BenchmarkKNN(dataset Dataset) (BenchmarkResult, error) {
 	return result, nil
 }
 
-func BenchmarkKMeans(dataset Dataset) (BenchmarkResult, error) {
+func BenchmarkKMeans(dataset benchmarkutil.Dataset) (BenchmarkResult, error) {
 
-	split := SplitDataset(dataset, 0.8)
+	split := benchmarkutil.SplitDataset(dataset, 0.8)
 
 	result := BenchmarkResult{
 		Model:     "KMeans",
@@ -442,7 +443,7 @@ func BenchmarkKMeans(dataset Dataset) (BenchmarkResult, error) {
 		TestRows:  split.TestRows,
 	}
 
-	nClasses, err := NumClasses(dataset)
+	nClasses, err := benchmarkutil.NumClasses(dataset)
 	if err != nil {
 		return result, err
 	}
@@ -457,7 +458,7 @@ func BenchmarkKMeans(dataset Dataset) (BenchmarkResult, error) {
 	}
 	defer kmeans.Close()
 
-	timer := Timer{}
+	timer := benchmarkutil.Timer{}
 
 	cpuMonitor, _ := capi.NewCPUMonitor()
 	defer cpuMonitor.Close()

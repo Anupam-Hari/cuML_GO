@@ -5,9 +5,10 @@ package capi
 #cgo LDFLAGS: -L${SRCDIR}/../../../build -lcumlgo
 
 #include "random_forest.h"
+#include <stdlib.h>
 */
 import "C"
-
+import "unsafe"
 import (
 	"fmt"
 )
@@ -95,6 +96,26 @@ func RandomForestPredict(
 	}
 
 	return predictions, nil
+}
+
+func RandomForestSave(
+	h *RandomForestHandle,
+	filename string,
+) error {
+
+	cname := C.CString(filename)
+	defer C.free(unsafe.Pointer(cname))
+
+	status := C.rf_save(
+		h.ptr,
+		cname,
+	)
+
+	if status != 0 {
+		return fmt.Errorf("rf_save failed")
+	}
+
+	return nil
 }
 
 func RandomForestDestroy(h *RandomForestHandle) {
