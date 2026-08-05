@@ -19,6 +19,10 @@ type CPUMonitor struct {
 	sum   float64
 	count int
 	peak  float64
+
+	memSum   float64
+	memPeak  float64
+	memCount int
 }
 
 func NewCPUMonitor() (*CPUMonitor, error) {
@@ -92,6 +96,9 @@ func (c *CPUMonitor) Start() error {
 	c.sum = 0
 	c.count = 0
 	c.peak = 0
+	c.memSum = 0
+	c.memCount = 0
+	c.memPeak = 0
 
 	go func() {
 		prevProc, err := readProcSelfStat()
@@ -141,6 +148,16 @@ func (c *CPUMonitor) Start() error {
 					c.peak = usage
 				}
 
+				mem, err := readRSSMB()
+				if err == nil {
+					c.memSum += mem
+					c.memCount++
+
+					if mem > c.memPeak {
+						c.memPeak = mem
+					}
+				}
+
 				c.mu.Unlock()
 
 			case <-c.done:
@@ -164,6 +181,55 @@ func (c *CPUMonitor) Stop() {
 	c.running = false
 
 	c.mu.Unlock()
+}
+
+func readRSSMB() (float64, error) {
+	f, err := os.Open("/proc/self/status")
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if strings.HasPrefix(line, "VmRSS:") {
+			fields := strings.Fields(line)
+
+			if len(fields) < 2 {
+				break
+			}
+
+			kb, err := strconv.ParseFloat(fields[1], 64)
+			if err != nil {
+				return 0, err
+			}
+
+			return kb / 1024.0, nil
+		}
+	}
+
+	return 0, fmt.Errorf("VmRSS not found")
+}
+
+func (c *CPUMonitor) MemoryAverage() float64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.memCount == 0 {
+		return 0
+	}
+
+	return c.memSum / float64(c.memCount)
+}
+
+func (c *CPUMonitor) MemoryPeak() float64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.memPeak
 }
 
 func (c *CPUMonitor) Average() float64 {

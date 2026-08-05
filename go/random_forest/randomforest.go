@@ -173,6 +173,14 @@ func Load(filename string) (*RandomForest, error) {
 	}, nil
 }
 
+func SetCPUThreads(threads int) {
+	capi.SetCPUThreads(threads)
+}
+
+func GetCPUThreads() int {
+	return capi.GetCPUThreads()
+}
+
 // Prevent accidental copying of a live model.
 func (rf *RandomForest) Handle() unsafe.Pointer {
 	return unsafe.Pointer(rf.handle)

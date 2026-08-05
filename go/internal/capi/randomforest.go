@@ -47,6 +47,18 @@ func RandomForestCreate(
 	}, nil
 }
 
+func SetCPUThreads(threads int) {
+	if threads <= 0 {
+		return
+	}
+
+	C.rf_set_cpu_threads(C.int(threads))
+}
+
+func GetCPUThreads() int {
+	return int(C.rf_get_cpu_threads())
+}
+
 func RandomForestFit(
 	h *RandomForestHandle,
 	data []float32,

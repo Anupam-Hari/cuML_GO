@@ -17,6 +17,10 @@ RFHandle* rf_create(
 
 void rf_destroy(RFHandle* handle);
 
+void rf_set_cpu_threads(int threads);
+
+int rf_get_cpu_threads();
+
 int rf_fit(
     RFHandle* handle,
     const float* X,

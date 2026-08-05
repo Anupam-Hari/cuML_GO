@@ -22,6 +22,9 @@ public:
     float average() const;
     float peak() const;
 
+    float memory_average() const;
+    float memory_peak() const;
+
 private:
     void monitor_loop();
 
@@ -36,6 +39,9 @@ private:
     float sum_;
     float peak_;
     int samples_;
+    float memory_sum_mb_;
+    float memory_peak_mb_;
+    int memory_samples_;
 };
 
 extern "C" {
@@ -52,6 +58,10 @@ void gpu_monitor_stop(GpuMonitorHandle* monitor);
 float gpu_monitor_average(GpuMonitorHandle* monitor);
 
 float gpu_monitor_peak(GpuMonitorHandle* monitor);
+
+float gpu_monitor_memory_average(GpuMonitorHandle* monitor);
+
+float gpu_monitor_memory_peak(GpuMonitorHandle* monitor);
 
 void gpu_monitor_destroy(GpuMonitorHandle* monitor);
 

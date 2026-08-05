@@ -7,7 +7,10 @@ GpuMonitor::GpuMonitor()
     : running_(false),
       sum_(0.0f),
       peak_(0.0f),
-      samples_(0)
+      samples_(0),
+      memory_sum_mb_(0.0f),
+      memory_peak_mb_(0.0f),
+      memory_samples_(0)
 {
 }
 
@@ -33,6 +36,9 @@ bool GpuMonitor::start()
     sum_ = 0.0f;
     peak_ = 0.0f;
     samples_ = 0;
+    memory_sum_mb_ = 0.0f;
+    memory_peak_mb_ = 0.0f;
+    memory_samples_ = 0;
 
     running_ = true;
 
@@ -61,10 +67,17 @@ void GpuMonitor::monitor_loop()
     while (running_) {
 
         nvmlUtilization_t util;
+        nvmlMemory_t mem;
 
-        if (nvmlDeviceGetUtilizationRates(device_, &util) == NVML_SUCCESS) {
+        auto util_ret =
+            nvmlDeviceGetUtilizationRates(device_, &util);
 
-            std::lock_guard<std::mutex> lock(mutex_);
+        auto mem_ret =
+            nvmlDeviceGetMemoryInfo(device_, &mem);
+
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        if (util_ret == NVML_SUCCESS) {
 
             float value = static_cast<float>(util.gpu);
 
@@ -73,6 +86,19 @@ void GpuMonitor::monitor_loop()
 
             if (value > peak_)
                 peak_ = value;
+        }
+
+        if (mem_ret == NVML_SUCCESS) {
+
+            float usedMB =
+                static_cast<float>(mem.used) /
+                (1024.0f * 1024.0f);
+
+            memory_sum_mb_ += usedMB;
+            memory_samples_++;
+
+            if (usedMB > memory_peak_mb_)
+                memory_peak_mb_ = usedMB;
         }
 
         next += std::chrono::milliseconds(5);
@@ -95,6 +121,23 @@ float GpuMonitor::peak() const
     std::lock_guard<std::mutex> lock(mutex_);
 
     return peak_;
+}
+
+float GpuMonitor::memory_average() const
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    if (memory_samples_ == 0)
+        return 0.0f;
+
+    return memory_sum_mb_ / memory_samples_;
+}
+
+float GpuMonitor::memory_peak() const
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    return memory_peak_mb_;
 }
 
 extern "C"
@@ -131,6 +174,20 @@ float gpu_monitor_peak(GpuMonitorHandle* monitor)
     auto* m = reinterpret_cast<GpuMonitor*>(monitor);
 
     return m->peak();
+}
+
+float gpu_monitor_memory_average(GpuMonitorHandle* monitor)
+{
+    auto* m = reinterpret_cast<GpuMonitor*>(monitor);
+
+    return m->memory_average();
+}
+
+float gpu_monitor_memory_peak(GpuMonitorHandle* monitor)
+{
+    auto* m = reinterpret_cast<GpuMonitor*>(monitor);
+
+    return m->memory_peak();
 }
 
 void gpu_monitor_destroy(GpuMonitorHandle* monitor)

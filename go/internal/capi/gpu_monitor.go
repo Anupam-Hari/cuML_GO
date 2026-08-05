@@ -48,6 +48,18 @@ func (g *GPUMonitor) Peak() float64 {
 	return float64(C.gpu_monitor_peak(g.handle))
 }
 
+func (g *GPUMonitor) MemoryAverage() float64 {
+	return float64(
+		C.gpu_monitor_memory_average(g.handle),
+	)
+}
+
+func (g *GPUMonitor) MemoryPeak() float64 {
+	return float64(
+		C.gpu_monitor_memory_peak(g.handle),
+	)
+}
+
 func (g *GPUMonitor) Close() {
 	if g.handle != nil {
 		C.gpu_monitor_destroy(g.handle)

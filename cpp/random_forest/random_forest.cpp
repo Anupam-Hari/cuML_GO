@@ -1,3 +1,4 @@
+#include <omp.h>
 #include "random_forest.h"
 
 #include "../common/cuda_utils.hpp"
@@ -60,6 +61,18 @@ RFHandle* rf_create(
     );
 
     return rf;
+}
+
+void rf_set_cpu_threads(int threads)
+{
+    if (threads > 0) {
+        omp_set_num_threads(threads);
+    }
+}
+
+int rf_get_cpu_threads()
+{
+    return omp_get_max_threads();
 }
 
 int rf_fit(
@@ -361,10 +374,6 @@ RFHandle* rf_load(
         delete rf;
         return nullptr;
     }
-
-    std::cout << "Loaded n_classes = "
-            << rf->n_classes
-            << std::endl;
 
     if (status != 0) {
         std::cerr << "Treelite error: "
