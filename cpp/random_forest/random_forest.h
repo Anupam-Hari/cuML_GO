@@ -23,8 +23,7 @@ int rf_fit(
     int rows,
     int cols,
     const int* y,
-    int n_classes,
-    int backend
+    int n_classes
 );
 
 int rf_predict(
@@ -32,7 +31,8 @@ int rf_predict(
     const float* X,
     int rows,
     int cols,
-    int* predictions
+    int* predictions,
+    int backend
 );
 
 #ifdef __cplusplus

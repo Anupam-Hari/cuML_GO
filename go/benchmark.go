@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"math"
+	"fmt"
 
 	"github.com/sjwhitworth/golearn/base"
 	"github.com/sjwhitworth/golearn/ensemble"
@@ -62,7 +63,7 @@ func BenchmarkRandomForest(dataset Dataset) (BenchmarkResult, error) {
 
 	timer.Start()
 
-	pred, err := rf.Predict(split.XTest)
+	pred, err := rf.Predict(split.XTest, 1)
 	if err != nil {
 		return result, err
 	}
@@ -217,6 +218,137 @@ func BenchmarkGoLearnRandomForest(dataset Dataset) (BenchmarkResult, error) {
 	result.TotalTimeMS =
 		result.TrainTimeMS +
 		predictTimeMS
+
+	return result, nil
+}
+
+func BenchmarkRFInference(dataset Dataset) (BenchmarkResult, error) {
+
+	split := SplitDataset(dataset, 0.8)
+
+	result := BenchmarkResult{
+		Model:     "Random Forest Inference",
+		TrainRows: split.TrainRows,
+		TestRows:  split.TestRows,
+	}
+
+	rf, err := randomforest.New(
+		randomforest.WithEstimators(100),
+		randomforest.WithMaxDepth(10),
+		randomforest.WithMaxFeatures(1.0),
+		randomforest.WithMaxLeaves(-1),
+		randomforest.WithMaxSamples(1.0),
+	)
+	if err != nil {
+		return result, err
+	}
+	defer rf.Close()
+
+	timer := Timer{}
+
+	//-------------------------------------------------
+	// Train once
+	//-------------------------------------------------
+
+	timer.Start()
+
+	err = rf.Fit(
+		split.XTrain,
+		split.YTrain,
+	)
+	if err != nil {
+		return result, err
+	}
+
+	result.TrainTimeMS = timer.Stop()
+
+	//-------------------------------------------------
+	// GPU warmup
+	//-------------------------------------------------
+
+	_, err = rf.Predict(
+		split.XTest,
+		randomforest.BackendGPU,
+	)
+	if err != nil {
+		return result, err
+	}
+
+	//-------------------------------------------------
+	// GPU benchmark
+	//-------------------------------------------------
+
+	timer.Start()
+
+	gpuPred, err := rf.Predict(
+		split.XTest,
+		randomforest.BackendGPU,
+	)
+	if err != nil {
+		return result, err
+	}
+
+	result.GPUPredictionTimeMS = timer.Stop()
+
+	result.GPUThroughput =
+		float64(result.TestRows) /
+			(result.GPUPredictionTimeMS / 1000.0)
+
+	//-------------------------------------------------
+	// CPU warmup
+	//-------------------------------------------------
+
+	_, err = rf.Predict(
+		split.XTest,
+		randomforest.BackendCPU,
+	)
+	if err != nil {
+		return result, err
+	}
+
+	//-------------------------------------------------
+	// CPU benchmark
+	//-------------------------------------------------
+
+	timer.Start()
+
+	cpuPred, err := rf.Predict(
+		split.XTest,
+		randomforest.BackendCPU,
+	)
+	if err != nil {
+		return result, err
+	}
+
+	result.CPUPredictionTimeMS = timer.Stop()
+
+	result.CPUThroughput =
+		float64(result.TestRows) /
+			(result.CPUPredictionTimeMS / 1000.0)
+
+	//-------------------------------------------------
+	// Accuracy
+	//-------------------------------------------------
+
+	correct := 0
+
+	for i := range gpuPred {
+
+		if gpuPred[i] == split.YTest[i] {
+			correct++
+		}
+
+		if gpuPred[i] != cpuPred[i] {
+			return result, fmt.Errorf(
+				"CPU and GPU predictions differ at sample %d",
+				i,
+			)
+		}
+	}
+
+	result.Accuracy =
+		float64(correct) /
+			float64(len(split.YTest))
 
 	return result, nil
 }

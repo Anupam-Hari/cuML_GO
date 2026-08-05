@@ -86,7 +86,7 @@ func New(opts ...Option) (*RandomForest, error) {
 	return rf, nil
 }
 
-func (rf *RandomForest) Fit(X [][]float32, y []int, backend int) error {
+func (rf *RandomForest) Fit(X [][]float32, y []int) error {
 	if rf.handle == nil {
 		return fmt.Errorf("random forest is closed")
 	}
@@ -114,11 +114,10 @@ func (rf *RandomForest) Fit(X [][]float32, y []int, backend int) error {
    	 dense.Cols,
    	 labels,
    	 nClasses,
-	 backend,
 	)
 }
 
-func (rf *RandomForest) Predict(X [][]float32) ([]int, error) {
+func (rf *RandomForest) Predict(X [][]float32, backend int) ([]int, error) {
 	if rf.handle == nil {
 		return nil, fmt.Errorf("random forest is closed")
 	}
@@ -133,6 +132,7 @@ func (rf *RandomForest) Predict(X [][]float32) ([]int, error) {
 		dense.Data,
 		dense.Rows,
 		dense.Cols,
+		backend,
 	)
 	if err != nil {
 		return nil, err

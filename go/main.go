@@ -42,11 +42,16 @@ func printResult(r BenchmarkResult) {
 	fmt.Printf("\n=== %s ===\n", r.Model)
 	fmt.Printf("Train Rows            : %d\n", r.TrainRows)
 	fmt.Printf("Test Rows             : %d\n", r.TestRows)
-	fmt.Printf("Training Time         : %.3f ms\n", r.TrainTimeMS)
-	fmt.Printf("Total Time            : %.3f ms\n", r.TotalTimeMS)
+	fmt.Printf("Training Time         : %.6f ms\n", r.TrainTimeMS)
 	fmt.Printf("Accuracy              : %.2f%%\n", r.Accuracy*100)
-	fmt.Printf("Prediction Throughput : %.2f samples/sec\n",
-		r.PredictionThroughput)
+
+	fmt.Printf("\nGPU Inference\n")
+	fmt.Printf("Prediction Time       : %.6f ms\n", r.GPUPredictionTimeMS)
+	fmt.Printf("Throughput            : %.6f samples/sec\n", r.GPUThroughput)
+
+	fmt.Printf("\nCPU Inference\n")
+	fmt.Printf("Prediction Time       : %.6f ms\n", r.CPUPredictionTimeMS)
+	fmt.Printf("Throughput            : %.6f samples/sec\n", r.CPUThroughput)
 }
 
 func main() {
@@ -116,43 +121,54 @@ func main() {
 			fmt.Printf("Running benchmark for %d rows\n", rows)
 			fmt.Printf("==============================\n")
 
-			rf, err := BenchmarkRandomForest(ds)
+			rf, err := BenchmarkRFInference(ds)
 			if err != nil {
 				log.Fatal(err)
 			}
+
 			rf.Run = run
+
 			allResults = append(allResults, rf)
+
 			printResult(rf)
 
-			rfCPU, err := BenchmarkGoLearnRandomForest(ds)
-			if err != nil {
-				log.Fatal(err)
-			}
-			rfCPU.Run = run
-			allResults = append(allResults, rfCPU)
-			printResult(rfCPU)
+			// rf, err := BenchmarkRandomForest(ds)
+			// if err != nil {
+			// 	log.Fatal(err)
+			// }
+			// rf.Run = run
+			// allResults = append(allResults, rf)
+			// printResult(rf)
 
-			knn, err := BenchmarkKNN(ds)
-			if err != nil {
-				log.Fatal(err)
-			}
-			knn.Run = run
-			allResults = append(allResults, knn)
-			printResult(knn)
+			// rfCPU, err := BenchmarkGoLearnRandomForest(ds)
+			// if err != nil {
+			// 	log.Fatal(err)
+			// }
+			// rfCPU.Run = run
+			// allResults = append(allResults, rfCPU)
+			// printResult(rfCPU)
 
-			km, err := BenchmarkKMeans(ds)
-			if err != nil {
-				log.Fatal(err)
-			}
-			km.Run = run
-			allResults = append(allResults, km)
-			printResult(km)
+			// knn, err := BenchmarkKNN(ds)
+			// if err != nil {
+			// 	log.Fatal(err)
+			// }
+			// knn.Run = run
+			// allResults = append(allResults, knn)
+			// printResult(knn)
+
+			// km, err := BenchmarkKMeans(ds)
+			// if err != nil {
+			// 	log.Fatal(err)
+			// }
+			// km.Run = run
+			// allResults = append(allResults, km)
+			// printResult(km)
 		}
 	}
 
 	timestamp := time.Now().Format("020106150405")
 	filename := fmt.Sprintf(
-		"go/results/go_run_%s.csv",
+		"go/results/go_run_cpugpu_%s.csv",
 		timestamp,
 	)
 

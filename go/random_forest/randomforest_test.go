@@ -30,11 +30,13 @@ func runBackendTest(
 	}
 	defer rf.Close()
 
-	if err := rf.Fit(X, y, backend); err != nil {
+	// Train once.
+	if err := rf.Fit(X, y); err != nil {
 		t.Fatal(err)
 	}
 
-	pred, err := rf.Predict(X)
+	// Choose inference backend.
+	pred, err := rf.Predict(X, backend)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,23 +71,53 @@ func TestRandomForestProcessedDataset(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	rf, err := New(
+		WithEstimators(100),
+		WithMaxDepth(16),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rf.Close()
+
+	// Train exactly once.
+	if err := rf.Fit(X, y); err != nil {
+		t.Fatal(err)
+	}
+
 	t.Run("GPU", func(t *testing.T) {
-		runBackendTest(
-			t,
-			BackendGPU,
-			"GPU",
-			X,
-			y,
-		)
+		pred, err := rf.Predict(X, BackendGPU)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		correct := 0
+		for i := range pred {
+			if pred[i] == y[i] {
+				correct++
+			}
+		}
+
+		t.Logf("[GPU] Samples  : %d", len(y))
+		t.Logf("[GPU] Accuracy : %.2f%%",
+			100*float64(correct)/float64(len(y)))
 	})
 
 	t.Run("CPU", func(t *testing.T) {
-		runBackendTest(
-			t,
-			BackendCPU,
-			"CPU",
-			X,
-			y,
-		)
+		pred, err := rf.Predict(X, BackendCPU)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		correct := 0
+		for i := range pred {
+			if pred[i] == y[i] {
+				correct++
+			}
+		}
+
+		t.Logf("[CPU] Samples  : %d", len(y))
+		t.Logf("[CPU] Accuracy : %.2f%%",
+			100*float64(correct)/float64(len(y)))
 	})
 }

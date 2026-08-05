@@ -53,7 +53,6 @@ func RandomForestFit(
 	cols int,
 	labels []int32,
 	nClasses int,
-	backend int,
 ) error {
 
 	status := C.rf_fit(
@@ -63,7 +62,6 @@ func RandomForestFit(
 		C.int(cols),
 		(*C.int)(&labels[0]),
 		C.int(nClasses),
-		C.int(backend),
 	)
 
 	if status != 0 {
@@ -78,6 +76,7 @@ func RandomForestPredict(
 	data []float32,
 	rows int,
 	cols int,
+	backend int,
 ) ([]int32, error) {
 
 	predictions := make([]int32, rows)
@@ -88,6 +87,7 @@ func RandomForestPredict(
 		C.int(rows),
 		C.int(cols),
 		(*C.int)(&predictions[0]),
+		C.int(backend),
 	)
 
 	if status != 0 {

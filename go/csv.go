@@ -21,6 +21,13 @@ type summaryValue struct {
 	Throughput float64
 	TotalTime float64
 	Accuracy float64
+
+	CPUPredictionTime float64
+	GPUPredictionTime float64
+
+	CPUThroughput float64
+	GPUThroughput float64
+
 	CPUAvg float64
 	CPUPeak float64
 	GPUAvg float64
@@ -47,9 +54,17 @@ func WriteResultsCSV(
 		"TrainRows",
 		"TestRows",
 		"TrainTime(ms)",
+
 		"PredictionThroughput(ops)",
 		"TotalTime(ms)",
 		"Accuracy",
+
+		"CPUPredictionTime(ms)",
+		"GPUPredictionTime(ms)",
+
+		"CPUThroughput(ops)",
+		"GPUThroughput(ops)",
+
 		"CPUAvg",
 		"CPUPeak",
 		"GPUAvg",
@@ -67,10 +82,19 @@ func WriteResultsCSV(
 			fmt.Sprintf("%d", r.Run),
 			fmt.Sprintf("%d", r.TrainRows),
 			fmt.Sprintf("%d", r.TestRows),
-			fmt.Sprintf("%.3f", r.TrainTimeMS),
-			fmt.Sprintf("%.3f", r.PredictionThroughput),
-			fmt.Sprintf("%.3f", r.TotalTimeMS),
+
+			fmt.Sprintf("%.6f", r.TrainTimeMS),
+
+			fmt.Sprintf("%.6f", r.PredictionThroughput),
+			fmt.Sprintf("%.6f", r.TotalTimeMS),
 			fmt.Sprintf("%.6f", r.Accuracy),
+
+			fmt.Sprintf("%.6f", r.CPUPredictionTimeMS),
+			fmt.Sprintf("%.6f", r.GPUPredictionTimeMS),
+
+			fmt.Sprintf("%.6f", r.CPUThroughput),
+			fmt.Sprintf("%.6f", r.GPUThroughput),
+
 			fmt.Sprintf("%.3f", r.CPUAvg),
 			fmt.Sprintf("%.3f", r.CPUPeak),
 			fmt.Sprintf("%.3f", r.GPUAvg),
@@ -110,17 +134,24 @@ func WriteSummaryCSV(rawCSV, summaryCSV string) error {
 			continue
 		}
 
-		trainRows, _ := strconv.Atoi(row[2])
+		trainRows, _ := strconv.Atoi(row[2]) 
 		testRows, _ := strconv.Atoi(row[3])
-
 		trainTime, _ := strconv.ParseFloat(row[4], 64)
+
 		throughput, _ := strconv.ParseFloat(row[5], 64)
 		totalTime, _ := strconv.ParseFloat(row[6], 64)
 		accuracy, _ := strconv.ParseFloat(row[7], 64)
-		cpuAvg, _ := strconv.ParseFloat(row[8], 64)
-		cpuPeak, _ := strconv.ParseFloat(row[9], 64)
-		gpuAvg, _ := strconv.ParseFloat(row[10], 64)
-		gpuPeak, _ := strconv.ParseFloat(row[11], 64)
+
+		cpuPredictionTime, _ := strconv.ParseFloat(row[8], 64)
+		gpuPredictionTime, _ := strconv.ParseFloat(row[9], 64)
+
+		cpuThroughput, _ := strconv.ParseFloat(row[10], 64)
+		gpuThroughput, _ := strconv.ParseFloat(row[11], 64)
+
+		cpuAvg, _ := strconv.ParseFloat(row[12], 64)
+		cpuPeak, _ := strconv.ParseFloat(row[13], 64)
+		gpuAvg, _ := strconv.ParseFloat(row[14], 64)
+		gpuPeak, _ := strconv.ParseFloat(row[15], 64)
 
 		key := summaryKey{
 			Model: row[0],
@@ -145,6 +176,10 @@ func WriteSummaryCSV(rawCSV, summaryCSV string) error {
 		s.CPUPeak += cpuPeak
 		s.GPUAvg += gpuAvg
 		s.GPUPeak += gpuPeak
+		s.CPUPredictionTime += cpuPredictionTime
+		s.GPUPredictionTime += gpuPredictionTime
+		s.CPUThroughput += cpuThroughput
+		s.GPUThroughput += gpuThroughput
 	}
 
 	keys := make([]summaryKey, 0, len(summary))
@@ -182,10 +217,19 @@ func WriteSummaryCSV(rawCSV, summaryCSV string) error {
 		"TrainRows",
 		"TestRows",
 		"Runs",
+
 		"AvgTrainTime(ms)",
+
 		"AvgPredictionThroughput(ops)",
 		"AvgTotalTime(ms)",
 		"AvgAccuracy",
+
+		"AvgCPUPredictionTime(ms)",
+		"AvgGPUPredictionTime(ms)",
+
+		"AvgCPUThroughput(ops)",
+		"AvgGPUThroughput(ops)",
+
 		"AvgCPUAvg",
 		"AvgCPUPeak",
 		"AvgGPUAvg",
@@ -201,10 +245,19 @@ func WriteSummaryCSV(rawCSV, summaryCSV string) error {
 			fmt.Sprintf("%d", key.TrainRows),
 			fmt.Sprintf("%d", s.TestRows),
 			fmt.Sprintf("%d", s.Count),
-			fmt.Sprintf("%.3f", s.TrainTime/float64(s.Count)),
-			fmt.Sprintf("%.3f", s.Throughput/float64(s.Count)),
-			fmt.Sprintf("%.3f", s.TotalTime/float64(s.Count)),
+
+			fmt.Sprintf("%.6f", s.TrainTime/float64(s.Count)),
+
+			fmt.Sprintf("%.6f", s.Throughput/float64(s.Count)),
+			fmt.Sprintf("%.6f", s.TotalTime/float64(s.Count)),
 			fmt.Sprintf("%.6f", s.Accuracy/float64(s.Count)),
+
+			fmt.Sprintf("%.6f", s.CPUPredictionTime/float64(s.Count)),
+			fmt.Sprintf("%.6f", s.GPUPredictionTime/float64(s.Count)),
+
+			fmt.Sprintf("%.6f", s.CPUThroughput/float64(s.Count)),
+			fmt.Sprintf("%.6f", s.GPUThroughput/float64(s.Count)),
+
 			fmt.Sprintf("%.3f", s.CPUAvg/float64(s.Count)),
 			fmt.Sprintf("%.3f", s.CPUPeak/float64(s.Count)),
 			fmt.Sprintf("%.3f", s.GPUAvg/float64(s.Count)),
