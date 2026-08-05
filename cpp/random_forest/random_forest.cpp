@@ -12,6 +12,8 @@
 #include <vector>
 #include <cuda_runtime.h>
 #include <memory>
+#include <fstream>
+#include <string>
 
 struct RFHandle {
     std::shared_ptr<rmm::cuda_stream_pool> stream_pool;
@@ -290,6 +292,7 @@ int rf_save(
     const char* filename)
 {
     if (handle == nullptr || handle->tl_model == nullptr) {
+        std::cerr << "rf_save: invalid handle" << std::endl;
         return -1;
     }
 
@@ -298,7 +301,124 @@ int rf_save(
         filename
     );
 
-    return (status == 0) ? 0 : -1;
+    if (status != 0) {
+        std::cerr << "Treelite error: "
+                  << TreeliteGetLastError()
+                  << std::endl;
+        return -1;
+    }
+
+    std::ofstream meta(std::string(filename) + ".meta");
+
+    if (!meta) {
+        std::cerr << "Failed to create metadata file" << std::endl;
+        return -1;
+    }
+
+    meta << handle->n_classes;
+    meta.close();
+
+    return 0;
+}
+
+RFHandle* rf_load(
+    const char* filename)
+{
+    auto* rf = new RFHandle;
+
+    rf->stream_pool = std::make_shared<rmm::cuda_stream_pool>(4);
+
+    new (&rf->handle) raft::handle_t(
+        rmm::cuda_stream_per_thread,
+        rf->stream_pool
+    );
+
+    int status = TreeliteDeserializeModelFromFile(
+        filename,
+        &rf->tl_model
+    );
+
+    std::ifstream meta(
+        std::string(filename) + ".meta"
+    );
+
+    if (!meta) {
+        std::cerr << "Failed to open metadata file"
+                << std::endl;
+
+        TreeliteFreeModel(rf->tl_model);
+        delete rf;
+        return nullptr;
+    }
+
+    meta >> rf->n_classes;
+
+    if (!meta) {
+        std::cerr << "Failed to read n_classes"
+                << std::endl;
+
+        TreeliteFreeModel(rf->tl_model);
+        delete rf;
+        return nullptr;
+    }
+
+    std::cout << "Loaded n_classes = "
+            << rf->n_classes
+            << std::endl;
+
+    if (status != 0) {
+        std::cerr << "Treelite error: "
+                  << TreeliteGetLastError()
+                  << std::endl;
+
+        delete rf;
+        return nullptr;
+    }
+
+    int device;
+    cudaGetDevice(&device);
+
+    try {
+
+        rf->cpu_forest.emplace(
+            nvforest::import_from_treelite_handle(
+                rf->tl_model,
+                nvforest::preferred_tree_layout,
+                0,
+                std::nullopt,
+                raft_proto::device_type::cpu,
+                device,
+                rf->handle.get_stream().value()
+            )
+        );
+        std::cout << "rf_load: cpu forest imported" << std::endl;
+
+        rf->gpu_forest.emplace(
+            nvforest::import_from_treelite_handle(
+                rf->tl_model,
+                nvforest::preferred_tree_layout,
+                0,
+                std::nullopt,
+                raft_proto::device_type::gpu,
+                device,
+                rf->handle.get_stream().value()
+            )
+        );
+
+        return rf;
+    }
+    catch (const std::exception& e) {
+
+        std::cerr << "rf_load exception: "
+                  << e.what()
+                  << std::endl;
+
+        if (rf->tl_model != nullptr)
+            TreeliteFreeModel(rf->tl_model);
+
+        delete rf;
+        return nullptr;
+    }
 }
 
 void rf_destroy(RFHandle* rf)

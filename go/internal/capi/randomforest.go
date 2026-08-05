@@ -118,6 +118,24 @@ func RandomForestSave(
 	return nil
 }
 
+func RandomForestLoad(
+	filename string,
+) (*RandomForestHandle, error) {
+
+	cname := C.CString(filename)
+	defer C.free(unsafe.Pointer(cname))
+
+	h := C.rf_load(cname)
+
+	if h == nil {
+		return nil, fmt.Errorf("rf_load failed")
+	}
+
+	return &RandomForestHandle{
+		ptr: h,
+	}, nil
+}
+
 func RandomForestDestroy(h *RandomForestHandle) {
 	if h == nil || h.ptr == nil {
 		return

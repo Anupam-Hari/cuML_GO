@@ -161,6 +161,18 @@ func (rf *RandomForest) Save(filename string) error {
 	)
 }
 
+func Load(filename string) (*RandomForest, error) {
+
+	handle, err := capi.RandomForestLoad(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	return &RandomForest{
+		handle: handle,
+	}, nil
+}
+
 // Prevent accidental copying of a live model.
 func (rf *RandomForest) Handle() unsafe.Pointer {
 	return unsafe.Pointer(rf.handle)
