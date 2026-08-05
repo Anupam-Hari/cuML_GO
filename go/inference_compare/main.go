@@ -6,6 +6,8 @@ import (
 	"time"
 	"path/filepath"
 	"strings"
+	"github.com/Anupam-Hari/cuml-go/go/internal/dataset"
+	randomforest "github.com/Anupam-Hari/cuml-go/go/random_forest"
 )
 
 func main() {
@@ -17,37 +19,86 @@ func main() {
 
 		PredictRows: 1000,
 
-		Repeats: 3,
+		Repeats: 20,
 
-		WarmupRuns: 1,
+		WarmupRuns: 3,
 
-		CPUCores: 8,
+		CPUCores: 0,
 
 		SampleInterval: 20 * time.Millisecond,
 	}
 
+
 	predictRows := []int{
 		1000,
+		10000,
+		20000,
+		50000,
+		80000,
+	}
+
+	maxRows := 0
+	for _, rows := range predictRows {
+		if rows > maxRows {
+			maxRows = rows
+		}
+	}
+
+	X, y, err := dataset.LoadCSV(
+		config.DatasetPath,
+		"is_malicious",
+		maxRows,
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	rf, err := randomforest.Load(config.ModelPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rf.Close()
+
+	if config.CPUCores > 0 {
+		randomforest.SetCPUThreads(config.CPUCores)
 	}
 
 	var results []BenchmarkResult
 
 	for _, rows := range predictRows {
 
-		cfg := config
-		cfg.PredictRows = rows// or see note below
-
-		result, err := BenchmarkRFInference(cfg)
-		if err != nil {
-			log.Fatal(err)
+		if rows > len(X) {
+			log.Fatalf(
+				"predict rows (%d) exceeds dataset size (%d)",
+				rows,
+				len(X),
+			)
 		}
 
-		results = append(results, result)
+		start := len(X) - rows
 
-		fmt.Printf(
-			"Completed benchmark for %d prediction samples\n",
-			rows,
-		)
+		X_ := X[start:]
+		y_ := y[start:]
+
+		cfg := config
+		cfg.PredictRows = rows
+
+		for run := 0; run < config.Repeats; run++ {
+
+			result, err := BenchmarkRFInference(
+				rf,
+				X_,
+				y_,
+				cfg,
+			)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			result.Run = run
+
+			results = append(results, result)
+		}
 	}
 
 	timestamp := time.Now().Format("020106150405")

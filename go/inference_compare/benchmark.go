@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	benchmark "github.com/Anupam-Hari/cuml-go/go/internal/benchmark"
-	"github.com/Anupam-Hari/cuml-go/go/internal/dataset"
 	randomforest "github.com/Anupam-Hari/cuml-go/go/random_forest"
 )
 
@@ -46,7 +45,6 @@ func calculateThroughput(
 func benchmarkCPU(
 	rf *randomforest.RandomForest,
 	X [][]float32,
-	repeats int,
 ) (
 	pred []int,
 	avgTimeMS float64,
@@ -68,27 +66,20 @@ func benchmarkCPU(
 
 	metrics.Start()
 
-	var totalTime float64
+	timer.Start()
 
-	for i := 0; i < repeats; i++ {
-
-		timer.Start()
-
-		pred, err = rf.Predict(
-			X,
-			randomforest.BackendCPU,
-		)
-		if err != nil {
-			metrics.Stop()
-			return
-		}
-
-		totalTime += timer.Stop()
+	pred, err = rf.Predict(
+		X,
+		randomforest.BackendCPU,
+	)
+	if err != nil {
+		metrics.Stop()
+		return
 	}
 
-	metrics.Stop()
+	avgTimeMS = timer.Stop()
 
-	avgTimeMS = totalTime / float64(repeats)
+	metrics.Stop()
 
 	throughput = calculateThroughput(
 		len(X),
@@ -107,7 +98,6 @@ func benchmarkCPU(
 func benchmarkGPU(
 	rf *randomforest.RandomForest,
 	X [][]float32,
-	repeats int,
 ) (
 	pred []int,
 	avgTimeMS float64,
@@ -129,27 +119,20 @@ func benchmarkGPU(
 
 	metrics.Start()
 
-	var totalTime float64
+	timer.Start()
 
-	for i := 0; i < repeats; i++ {
-
-		timer.Start()
-
-		pred, err = rf.Predict(
-			X,
-			randomforest.BackendGPU,
-		)
-		if err != nil {
-			metrics.Stop()
-			return
-		}
-
-		totalTime += timer.Stop()
+	pred, err = rf.Predict(
+		X,
+		randomforest.BackendGPU,
+	)
+	if err != nil {
+		metrics.Stop()
+		return
 	}
 
-	metrics.Stop()
+	avgTimeMS = timer.Stop()
 
-	avgTimeMS = totalTime / float64(repeats)
+	metrics.Stop()
 
 	throughput = calculateThroughput(
 		len(X),
@@ -166,6 +149,9 @@ func benchmarkGPU(
 }
 
 func BenchmarkRFInference(
+	rf *randomforest.RandomForest,
+	X [][]float32,
+	y []int,
 	config Config,
 ) (BenchmarkResult, error) {
 
@@ -175,49 +161,7 @@ func BenchmarkRFInference(
 		CPUCores:    config.CPUCores,
 	}
 
-	//-------------------------------------------------
-	// Load dataset
-	//-------------------------------------------------
-
-	X, y, err := dataset.LoadCSV(
-		config.DatasetPath,
-		"is_malicious",
-		0, // load entire dataset
-	)
-	if err != nil {
-		return result, err
-	}
-
-	if config.PredictRows > len(X) {
-		return result, fmt.Errorf(
-			"predict rows (%d) exceeds dataset size (%d)",
-			config.PredictRows,
-			len(X),
-		)
-	}
-
-	start := len(X) - config.PredictRows
-
-	X = X[start:]
-	y = y[start:]
-
-	//-------------------------------------------------
-	// Load trained model
-	//-------------------------------------------------
-
-	rf, err := randomforest.Load(config.ModelPath)
-	if err != nil {
-		return result, err
-	}
-	defer rf.Close()
-
-	//-------------------------------------------------
-	// Configure CPU inference threads
-	//-------------------------------------------------
-
-	if config.CPUCores > 0 {
-		randomforest.SetCPUThreads(config.CPUCores)
-	}
+	var err error
 
 	var gpuPred []int
 	var cpuPred []int
@@ -266,7 +210,6 @@ func BenchmarkRFInference(
 		err = benchmarkGPU(
 		rf,
 		X,
-		config.Repeats,
 	)
 
 	if err != nil {
@@ -287,7 +230,6 @@ func BenchmarkRFInference(
 		err = benchmarkCPU(
 		rf,
 		X,
-		config.Repeats,
 	)
 
 	if err != nil {
