@@ -109,7 +109,8 @@ BenchmarkResult benchmark_random_forest(
         split.train_rows,
         dataset.cols,
         split.y_train.data(),
-        num_classes(dataset));
+        num_classes(dataset),
+        1);
 
     result.train_time_ms = timer.stop();
 
@@ -122,7 +123,8 @@ BenchmarkResult benchmark_random_forest(
         split.X_test.data(),
         split.test_rows,
         dataset.cols,
-        predictions.data());
+        predictions.data()
+    );
 
     double predict_time_ms = timer.stop();
 

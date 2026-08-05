@@ -10,6 +10,11 @@ import (
 	"unsafe"
 )
 
+const (
+	BackendCPU = capi.BackendCPU
+	BackendGPU = capi.BackendGPU
+)
+
 type RandomForest struct {
 	handle *capi.RandomForestHandle
 
@@ -81,7 +86,7 @@ func New(opts ...Option) (*RandomForest, error) {
 	return rf, nil
 }
 
-func (rf *RandomForest) Fit(X [][]float32, y []int) error {
+func (rf *RandomForest) Fit(X [][]float32, y []int, backend int) error {
 	if rf.handle == nil {
 		return fmt.Errorf("random forest is closed")
 	}
@@ -109,6 +114,7 @@ func (rf *RandomForest) Fit(X [][]float32, y []int) error {
    	 dense.Cols,
    	 labels,
    	 nClasses,
+	 backend,
 	)
 }
 

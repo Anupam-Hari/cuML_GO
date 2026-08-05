@@ -1,9 +1,9 @@
 package randomforest
 
 import (
-	"testing"
-	"os"
 	"flag"
+	"os"
+	"testing"
 
 	"github.com/Anupam-Hari/cuml-go/go/internal/dataset"
 )
@@ -14,20 +14,13 @@ var maxRows = flag.Int(
 	"Maximum number of dataset rows",
 )
 
-func TestRandomForestProcessedDataset(t *testing.T) {
-
-	wd, _ := os.Getwd()
-	t.Log("Working directory:", wd)
-
-	X, y, err := dataset.LoadCSV(
-		"../../benchmark/data/processed_network_traffic.csv",
-		"is_malicious",
-		*maxRows,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+func runBackendTest(
+	t *testing.T,
+	backend int,
+	name string,
+	X [][]float32,
+	y []int,
+) {
 	rf, err := New(
 		WithEstimators(100),
 		WithMaxDepth(16),
@@ -37,7 +30,7 @@ func TestRandomForestProcessedDataset(t *testing.T) {
 	}
 	defer rf.Close()
 
-	if err := rf.Fit(X, y); err != nil {
+	if err := rf.Fit(X, y, backend); err != nil {
 		t.Fatal(err)
 	}
 
@@ -59,6 +52,40 @@ func TestRandomForestProcessedDataset(t *testing.T) {
 
 	accuracy := float64(correct) / float64(len(y))
 
-	t.Logf("Samples  : %d", len(y))
-	t.Logf("Accuracy : %.2f%%", accuracy*100)
+	t.Logf("[%s] Samples  : %d", name, len(y))
+	t.Logf("[%s] Accuracy : %.2f%%", name, accuracy*100)
+}
+
+func TestRandomForestProcessedDataset(t *testing.T) {
+	wd, _ := os.Getwd()
+	t.Log("Working directory:", wd)
+
+	X, y, err := dataset.LoadCSV(
+		"../../benchmark/data/processed_network_traffic.csv",
+		"is_malicious",
+		*maxRows,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("GPU", func(t *testing.T) {
+		runBackendTest(
+			t,
+			BackendGPU,
+			"GPU",
+			X,
+			y,
+		)
+	})
+
+	t.Run("CPU", func(t *testing.T) {
+		runBackendTest(
+			t,
+			BackendCPU,
+			"CPU",
+			X,
+			y,
+		)
+	})
 }

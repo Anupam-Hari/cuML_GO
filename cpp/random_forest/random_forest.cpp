@@ -21,6 +21,7 @@ struct RFHandle {
     TreeliteModelHandle tl_model = nullptr;
     std::optional<nvforest::forest_model> forest;
     int n_classes = 0;
+    raft_proto::device_type backend;
 };
 
 RFHandle* rf_create(
@@ -65,11 +66,16 @@ int rf_fit(
     int rows,
     int cols,
     const int* y,
-    int n_classes)
+    int n_classes,
+    int backend)
 {
     float* d_X = nullptr;
     int* d_y = nullptr;
     handle->n_classes = n_classes;
+    handle->backend =
+        backend == 0
+            ? raft_proto::device_type::cpu
+            : raft_proto::device_type::gpu;
 
     int device;
     cudaGetDevice(&device);
@@ -128,7 +134,7 @@ int rf_fit(
                 nvforest::preferred_tree_layout,
                 0,
                 std::nullopt,
-                raft_proto::device_type::gpu,
+                handle->backend,
                 device,
                 handle->handle.get_stream().value()
             )
@@ -174,63 +180,101 @@ int rf_predict(
 
     try
     {
-        d_X = static_cast<float*>(
-            cuda_utils::Malloc(rows * cols * sizeof(float)));
-
-        d_predictions = static_cast<float*>(cuda_utils::Malloc(rows * handle->n_classes * sizeof(float)));
-
-        cuda_utils::CopyHostToDevice(
-            d_X,
-            X,
-            rows * cols * sizeof(float));
-
         if (!handle->forest.has_value()) {
-            cuda_utils::Free(d_X);
-            cuda_utils::Free(d_predictions);
-            return -1;
-        }
+                cuda_utils::Free(d_X);
+                cuda_utils::Free(d_predictions);
+                return -1;
+            }
+            
+        if (handle->backend == raft_proto::device_type::gpu) {
+            d_X = static_cast<float*>(
+                cuda_utils::Malloc(rows * cols * sizeof(float)));
 
-        handle->forest->predict(
-            raft_proto::handle_t(handle->handle),
-            d_predictions,
-            d_X,
-            rows,
-            raft_proto::device_type::gpu,
-            raft_proto::device_type::gpu
-        );
+            d_predictions = static_cast<float*>(cuda_utils::Malloc(rows * handle->n_classes * sizeof(float)));
 
-        std::vector<float> h_predictions(rows * handle->n_classes);
+            cuda_utils::CopyHostToDevice(
+                d_X,
+                X,
+                rows * cols * sizeof(float));
 
-        cuda_utils::CopyDeviceToHost(
-            h_predictions.data(),
-            d_predictions,
-            rows * handle->n_classes * sizeof(float)
-        );
+            handle->forest->predict(
+                raft_proto::handle_t(handle->handle),
+                d_predictions,
+                d_X,
+                rows,
+                raft_proto::device_type::gpu,
+                raft_proto::device_type::gpu
+            );
+            std::vector<float> h_predictions(rows * handle->n_classes);
 
-        for (int r = 0; r < rows; ++r) {
+            cuda_utils::CopyDeviceToHost(
+                h_predictions.data(),
+                d_predictions,
+                rows * handle->n_classes * sizeof(float)
+            );
 
-            int best = 0;
-            float best_score =
-                h_predictions[r * handle->n_classes];
+            for (int r = 0; r < rows; ++r) {
 
-            for (int c = 1; c < handle->n_classes; ++c) {
+                int best = 0;
+                float best_score =
+                    h_predictions[r * handle->n_classes];
 
-                float score =
-                    h_predictions[r * handle->n_classes + c];
+                for (int c = 1; c < handle->n_classes; ++c) {
 
-                if (score > best_score) {
-                    best_score = score;
-                    best = c;
+                    float score =
+                        h_predictions[r * handle->n_classes + c];
+
+                    if (score > best_score) {
+                        best_score = score;
+                        best = c;
+                    }
                 }
+
+                predictions[r] = best;
             }
 
-            predictions[r] = best;
+            cuda_utils::Free(d_X);
+            cuda_utils::Free(d_predictions);
+
+            return 0;
+        }
+        else {
+            std::vector<float> h_predictions(
+                rows * handle->n_classes
+            );
+
+            handle->forest->predict(
+                raft_proto::handle_t(handle->handle),
+                h_predictions.data(),
+                const_cast<float*>(X),
+                rows,
+                raft_proto::device_type::cpu,
+                raft_proto::device_type::cpu
+            );
+
+            for (int r = 0; r < rows; ++r) {
+
+                int best = 0;
+                float best_score =
+                    h_predictions[r * handle->n_classes];
+
+                for (int c = 1; c < handle->n_classes; ++c) {
+
+                    float score =
+                        h_predictions[r * handle->n_classes + c];
+
+                    if (score > best_score) {
+                        best_score = score;
+                        best = c;
+                    }
+                }
+
+                predictions[r] = best;
+            }
+
+            return 0;
         }
 
-        cuda_utils::Free(d_X);
-        cuda_utils::Free(d_predictions);
-
-        return 0;
     }
     catch (const std::exception& e)
     {

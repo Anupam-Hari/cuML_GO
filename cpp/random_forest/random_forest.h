@@ -23,7 +23,8 @@ int rf_fit(
     int rows,
     int cols,
     const int* y,
-    int n_classes
+    int n_classes,
+    int backend
 );
 
 int rf_predict(

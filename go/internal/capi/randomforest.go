@@ -12,6 +12,11 @@ import (
 	"fmt"
 )
 
+const (
+	BackendCPU = 0
+	BackendGPU = 1
+)
+
 type RandomForestHandle struct {
 	ptr *C.RFHandle
 }
@@ -48,6 +53,7 @@ func RandomForestFit(
 	cols int,
 	labels []int32,
 	nClasses int,
+	backend int,
 ) error {
 
 	status := C.rf_fit(
@@ -57,6 +63,7 @@ func RandomForestFit(
 		C.int(cols),
 		(*C.int)(&labels[0]),
 		C.int(nClasses),
+		C.int(backend),
 	)
 
 	if status != 0 {
