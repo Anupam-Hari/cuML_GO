@@ -21,7 +21,7 @@ func main() {
 
 		Repeats: 20,
 
-		WarmupRuns: 3,
+		WarmupRuns: 5,
 
 		CPUCores: 0,
 
@@ -33,7 +33,11 @@ func main() {
 		1000,
 		10000,
 		20000,
+		30000,
+		40000,
 		50000,
+		60000,
+		70000,
 		80000,
 	}
 
