@@ -41,11 +41,11 @@ KMeansHandle* kmeans_create(
     auto* km = new KMeansHandle;
 
     km->n_clusters = n_clusters;
-
+    km->params.init = ML::kmeans::KMeansParams::InitMethod::KMeansPlusPlus;
     km->params.n_clusters = n_clusters;
     km->params.max_iter   = max_iters;
     km->params.tol        = tolerance;
-    km->params.rng_state = raft::random::RngState(42, raft::random::GeneratorType::GenPhilox);
+    km->params.rng_state.seed = 42;
 
     return km;
 }

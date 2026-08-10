@@ -39,269 +39,55 @@ func BenchmarkRandomForest(dataset benchmarkutil.Dataset) (BenchmarkResult, erro
 	}
 	defer rf.Close()
 
-	cpuMonitor, _ := capi.NewCPUMonitor()
-	defer cpuMonitor.Close()
-
-	gpumonitor, _ := capi.NewGPUMonitor()
-	defer gpumonitor.Close()
-
-	timer := benchmarkutil.Timer{}
-
-	gpumonitor.Start()
-	cpuMonitor.Start()
-
-	timer.Start()
-
-	err = rf.Fit(
-		split.XTrain,
-		split.YTrain,
-	)
-	if err != nil {
-		return result, err
-	}
-
-	result.TrainTimeMS = timer.Stop()
-
-	timer.Start()
-
-	pred, err := rf.Predict(split.XTest, 1)
-	if err != nil {
-		return result, err
-	}
-
-	predictTimeMS := timer.Stop()
-	gpumonitor.Stop()
-	cpuMonitor.Stop()
-
-	correct := 0
-	for i := range pred {
-		if pred[i] == split.YTest[i] {
-			correct++
-		}
-	}
-
-	accuracy := float64(correct) / float64(len(split.YTest))
-	result.Accuracy = accuracy
-
-	result.GPUAvg = gpumonitor.Average()
-	result.GPUPeak = gpumonitor.Peak()
-
-	result.CPUAvg = cpuMonitor.Average()
-	result.CPUPeak = cpuMonitor.Peak()
-
-	result.PredictionThroughput =
-		float64(result.TestRows) /
-			(predictTimeMS / 1000.0)
-
-	result.TotalTimeMS =
-		result.TrainTimeMS +
-			predictTimeMS
-
-	return result, nil
-}
-
-func BenchmarkGoLearnRandomForest(dataset benchmarkutil.Dataset) (BenchmarkResult, error) {
-
-	split := benchmarkutil.SplitDataset(dataset, 0.8)
-
-	result := BenchmarkResult{
-		Model:     "GoLearn Random Forest",
-		TrainRows: split.TrainRows,
-		TestRows:  split.TestRows,
-	}
-
-	trainFile := "golearn_train_tmp.csv"
-	testFile := "golearn_test_tmp.csv"
-
-	err := datasetpkg.WriteGoLearnCSV(
-		trainFile,
-		split.XTrain,
-		split.YTrain,
-	)
-	if err != nil {
-		return result, err
-	}
-
-	err = datasetpkg.WriteGoLearnCSV(
-		testFile,
-		split.XTest,
-		split.YTest,
-	)
-	if err != nil {
-		return result, err
-	}
-
-	defer os.Remove(trainFile)
-	defer os.Remove(testFile)
-
-	classAttr := base.NewCategoricalAttribute()
-	classAttr.SetName("class")
-
-	overrides := map[int]base.Attribute{
-		49: classAttr,
-	}
-
-	classGroups := map[string]string{
-		"class": "CLASS",
-	}
-
-	trainData, err := base.ParseCSVToInstancesWithAttributeGroups(
-		trainFile,
-		nil,
-		classGroups,
-		overrides,
-		true,
-	)
-	if err != nil {
-		return result, err
-	}
-
-	testData, err := base.ParseCSVToInstancesWithAttributeGroups(
-		testFile,
-		nil,
-		classGroups,
-		overrides,
-		true,
-	)
-	if err != nil {
-		return result, err
-	}
-
-	mtry := int(math.Sqrt(float64(len(split.XTrain[0]))))
-
-	rf := ensemble.NewRandomForest(
-		100, // trees
-		mtry,   // features considered per split
-	)
-	cpuMonitor, _ := capi.NewCPUMonitor()
-	defer cpuMonitor.Close()
-
-	timer := benchmarkutil.Timer{}
-	cpuMonitor.Start()
-
-	timer.Start()
-
-	err = rf.Fit(trainData)
-	if err != nil {
-		return result, err
-	}
-
-	result.TrainTimeMS = timer.Stop()
-
-	timer.Start()
-
-	predictions, err := rf.Predict(testData)
-	if err != nil {
-		return result, err
-	}
-
-	predictTimeMS := timer.Stop()
-
-	cpuMonitor.Stop()
-
-	cm, err := evaluation.GetConfusionMatrix(
-		testData,
-		predictions,
-	)
-	if err != nil {
-		return result, err
-	}
-
-	result.CPUAvg = cpuMonitor.Average()
-	result.CPUPeak = cpuMonitor.Peak()
-
-	result.Accuracy = evaluation.GetAccuracy(cm)
-
-	result.PredictionThroughput =
-		float64(result.TestRows) /
-		(predictTimeMS / 1000.0)
-
-	result.TotalTimeMS =
-		result.TrainTimeMS +
-		predictTimeMS
-
-	return result, nil
-}
-
-func BenchmarkRFInference(dataset benchmarkutil.Dataset) (BenchmarkResult, error) {
-
-	split := benchmarkutil.SplitDataset(dataset, 0.8)
-
-	result := BenchmarkResult{
-		Model:     "Random Forest Inference",
-		TrainRows: split.TrainRows,
-		TestRows:  split.TestRows,
-	}
-
-	rf, err := randomforest.New(
-		randomforest.WithEstimators(100),
-		randomforest.WithMaxDepth(10),
-		randomforest.WithMaxFeatures(1.0),
-		randomforest.WithMaxLeaves(-1),
-		randomforest.WithMaxSamples(1.0),
-	)
-	if err != nil {
-		return result, err
-	}
-	defer rf.Close()
-
-	timer := benchmarkutil.Timer{}
-
 	//-------------------------------------------------
-	// Train once
+	// TRAIN
 	//-------------------------------------------------
 
-	timer.Start()
-
-	err = rf.Fit(
-		split.XTrain,
-		split.YTrain,
-	)
+	trainTime, trainCPUAvg, trainCPUPeak, err :=
+		BenchmarkRFTrain(rf, split.XTrain, split.YTrain)
 	if err != nil {
 		return result, err
 	}
 
-	result.TrainTimeMS = timer.Stop()
+	result.TrainTimeMS = trainTime
+	result.CPUAvg = trainCPUAvg
+	result.CPUPeak = trainCPUPeak
 
 	//-------------------------------------------------
 	// GPU warmup
 	//-------------------------------------------------
 
-	_, err = rf.Predict(
-		split.XTest,
-		randomforest.BackendGPU,
-	)
-	if err != nil {
-		return result, err
+	for i := 0; i < 3; i++ {
+		_, err = rf.Predict(split.XTest, randomforest.BackendGPU)
+		if err != nil {
+			return result, err
+		}
+	}
+
+	//-------------------------------------------------
+	// CPU warmup
+	//-------------------------------------------------
+
+	for i := 0; i < 3; i++ {
+		_, err = rf.Predict(split.XTest, randomforest.BackendCPU)
+		if err != nil {
+			return result, err
+		}
 	}
 
 	//-------------------------------------------------
 	// GPU benchmark
 	//-------------------------------------------------
 
-	timer.Start()
-
-	gpuPred, err := rf.Predict(
+	gpuPred,
+		gpuTime,
+		gpuThroughput,
+		gpuCPUAvg,
+		gpuCPUPeak,
+		err := BenchmarkRFGPU(
+		rf,
 		split.XTest,
-		randomforest.BackendGPU,
-	)
-	if err != nil {
-		return result, err
-	}
-
-	result.GPUPredictionTimeMS = timer.Stop()
-
-	result.GPUThroughput =
-		float64(result.TestRows) /
-			(result.GPUPredictionTimeMS / 1000.0)
-
-	//-------------------------------------------------
-	// CPU warmup
-	//-------------------------------------------------
-
-	_, err = rf.Predict(
-		split.XTest,
-		randomforest.BackendCPU,
+		5,
 	)
 	if err != nil {
 		return result, err
@@ -311,199 +97,631 @@ func BenchmarkRFInference(dataset benchmarkutil.Dataset) (BenchmarkResult, error
 	// CPU benchmark
 	//-------------------------------------------------
 
-	timer.Start()
-
-	cpuPred, err := rf.Predict(
+	cpuPred,
+		cpuTime,
+		cpuThroughput,
+		cpuCPUAvg,
+		cpuCPUPeak,
+		err := BenchmarkRFCPU(
+		rf,
 		split.XTest,
-		randomforest.BackendCPU,
+		5,
 	)
 	if err != nil {
 		return result, err
 	}
 
-	result.CPUPredictionTimeMS = timer.Stop()
-
-	result.CPUThroughput =
-		float64(result.TestRows) /
-			(result.CPUPredictionTimeMS / 1000.0)
-
 	//-------------------------------------------------
-	// Accuracy
+	// VERIFY
 	//-------------------------------------------------
-
-	correct := 0
 
 	for i := range gpuPred {
-
-		if gpuPred[i] == split.YTest[i] {
-			correct++
-		}
-
 		if gpuPred[i] != cpuPred[i] {
 			return result, fmt.Errorf(
-				"CPU and GPU predictions differ at sample %d",
+				"CPU/GPU prediction mismatch at sample %d",
 				i,
 			)
 		}
 	}
 
-	result.Accuracy =
-		float64(correct) /
-			float64(len(split.YTest))
+	//-------------------------------------------------
+	// ACCURACY
+	//-------------------------------------------------
+
+	result.Accuracy = computeAccuracy(
+		gpuPred,
+		split.YTest,
+	)
+
+	//-------------------------------------------------
+	// ASSIGN GPU RESULTS
+	//-------------------------------------------------
+
+	result.GPUPredictionTimeMS = gpuTime
+	result.GPUThroughput = gpuThroughput
+	result.GPURunCPUAvg = gpuCPUAvg
+	result.GPURunCPUPeak = gpuCPUPeak
+
+	//-------------------------------------------------
+	// ASSIGN CPU RESULTS
+	//-------------------------------------------------
+
+	result.CPUPredictionTimeMS = cpuTime
+	result.CPUThroughput = cpuThroughput
+	result.CPURunCPUAvg = cpuCPUAvg
+	result.CPURunCPUPeak = cpuCPUPeak
+
+	//-------------------------------------------------
+	// TOTAL
+	//-------------------------------------------------
+
+	result.TotalTimeMS =
+		result.TrainTimeMS +
+			result.GPUPredictionTimeMS // or CPU if you prefer baseline
 
 	return result, nil
 }
 
-func BenchmarkKNN(dataset benchmarkutil.Dataset) (BenchmarkResult, error) {
+func BenchmarkRFTrain(
+	rf *randomforest.RandomForest,
+	X [][]float32,
+	y []int,
+) (
+	trainTimeMS float64,
+	cpuAvg float64,
+	cpuPeak float64,
+	err error,
+) {
 
-	split := benchmarkutil.SplitDataset(dataset, 0.8)
-
-	result := BenchmarkResult{
-		Model:     "KNN",
-		TrainRows: split.TrainRows,
-		TestRows:  split.TestRows,
-	}
-
-	knn, err := knn.New(
-		knn.WithK(5),
-	)
+	metrics, err := benchmark.NewMetrics()
 	if err != nil {
-		return result, err
+		return
 	}
-	defer knn.Close()
+	defer metrics.Close()
 
-	timer := benchmarkutil.Timer{}
-	gpumonitor, _ := capi.NewGPUMonitor()
-	defer gpumonitor.Close()
+	timer := benchmark.Timer{}
 
-	cpuMonitor, _ := capi.NewCPUMonitor()
-    defer cpuMonitor.Close()
-
-	gpumonitor.Start()
-	cpuMonitor.Start()
+	metrics.Start()
 	timer.Start()
 
-	err = knn.Fit(
-		split.XTrain,
-		split.YTrain,
-	)
+	err = rf.Fit(X, y)
 	if err != nil {
-		return result, err
+		metrics.Stop()
+		return
 	}
 
-	result.TrainTimeMS = timer.Stop()
+	trainTimeMS = timer.Stop()
+	metrics.Stop()
 
+	cpuAvg = metrics.CPUAverage()
+	cpuPeak = metrics.CPUPeak()
+
+	return
+}
+
+func BenchmarkRFGPU(
+	rf *randomforest.RandomForest,
+	X [][]float32,
+	repeats int,
+) (
+	pred []int,
+	avgTimeMS float64,
+	throughput float64,
+	cpuAvg float64,
+	cpuPeak float64,
+	err error,
+) {
+
+	metrics, err := benchmark.NewMetrics()
+	if err != nil {
+		return
+	}
+	defer metrics.Close()
+
+	timer := benchmark.Timer{}
+
+	metrics.Start()
 	timer.Start()
 
-	pred, err := knn.Predict(split.XTest)
-	if err != nil {
-		return result, err
-	}
+	for i := 0; i < repeats; i++ {
 
-	predictTimeMS := timer.Stop()
-
-	gpumonitor.Stop()
-	cpuMonitor.Stop()
-
-	correct := 0
-	for i := range pred {
-		if pred[i] == split.YTest[i] {
-			correct++
+		pred, err = rf.Predict(
+			X,
+			randomforest.BackendGPU,
+		)
+		if err != nil {
+			metrics.Stop()
+			return
 		}
 	}
 
-	accuracy := float64(correct) / float64(len(split.YTest))
+	avgTimeMS = timer.Stop() / float64(repeats)
+	metrics.Stop()
 
-	result.Accuracy = accuracy
+	throughput = calculateThroughput(len(X), avgTimeMS)
 
-	result.GPUAvg = gpumonitor.Average()
-	result.GPUPeak = gpumonitor.Peak()
+	cpuAvg = metrics.CPUAverage()
+	cpuPeak = metrics.CPUPeak()
 
-	result.CPUAvg = cpuMonitor.Average()
-	result.CPUPeak = cpuMonitor.Peak()
-
-	result.PredictionThroughput =
-		float64(result.TestRows) /
-			(predictTimeMS / 1000.0)
-
-	result.TotalTimeMS =
-		result.TrainTimeMS +
-			predictTimeMS
-
-	return result, nil
+	return
 }
 
-func BenchmarkKMeans(dataset benchmarkutil.Dataset) (BenchmarkResult, error) {
+func BenchmarkRFCPU(
+	rf *randomforest.RandomForest,
+	X [][]float32,
+	repeats int,
+) (
+	pred []int,
+	avgTimeMS float64,
+	throughput float64,
+	cpuAvg float64,
+	cpuPeak float64,
+	err error,
+) {
 
-	split := benchmarkutil.SplitDataset(dataset, 0.8)
-
-	result := BenchmarkResult{
-		Model:     "KMeans",
-		TrainRows: split.TrainRows,
-		TestRows:  split.TestRows,
-	}
-
-	nClasses, err := benchmarkutil.NumClasses(dataset)
+	metrics, err := benchmark.NewMetrics()
 	if err != nil {
-		return result, err
+		return
 	}
+	defer metrics.Close()
 
-	kmeans, err := kmeans.New(
-		kmeans.WithNClusters(nClasses),
-		kmeans.WithMaxIters(300),
-		kmeans.WithTolerance(1e-4),
-	)
-	if err != nil {
-		return result, err
-	}
-	defer kmeans.Close()
+	timer := benchmark.Timer{}
 
-	timer := benchmarkutil.Timer{}
-
-	cpuMonitor, _ := capi.NewCPUMonitor()
-	defer cpuMonitor.Close()
-
-	gpumonitor, _ := capi.NewGPUMonitor()
-	defer gpumonitor.Close()
-
-	cpuMonitor.Start()
-	gpumonitor.Start()
-	
-
+	metrics.Start()
 	timer.Start()
 
-	err = kmeans.Fit(split.XTrain)
-	if err != nil {
-		return result, err
+	for i := 0; i < repeats; i++ {
+
+		pred, err = rf.Predict(
+			X,
+			randomforest.BackendCPU,
+		)
+		if err != nil {
+			metrics.Stop()
+			return
+		}
 	}
 
-	result.TrainTimeMS = timer.Stop()
+	avgTimeMS = timer.Stop() / float64(repeats)
+	metrics.Stop()
 
-	timer.Start()
+	throughput = calculateThroughput(len(X), avgTimeMS)
 
-	_, err = kmeans.Predict(split.XTest)
-	if err != nil {
-		return result, err
-	}
+	cpuAvg = metrics.CPUAverage()
+	cpuPeak = metrics.CPUPeak()
 
-	predictTimeMS := timer.Stop()
+	return
+}
 
-	gpumonitor.Stop()
-	cpuMonitor.Stop()
+func BenchmarkKNN(
+    X [][]float32,
+    y []int,
+    config Config,
+) (BenchmarkResult, error) {
 
-	result.GPUAvg = gpumonitor.Average()
-	result.GPUPeak = gpumonitor.Peak()
+    result := BenchmarkResult{
+        Model:       "KNN",
+        PredictRows: config.PredictRows,
+        CPUCores:    config.CPUCores,
+    }
 
-	result.CPUAvg = cpuMonitor.Average()
-	result.CPUPeak = cpuMonitor.Peak()
+    //-------------------------------------------------
+    // CREATE MODELS
+    //-------------------------------------------------
 
-	result.PredictionThroughput =
-		float64(result.TestRows) /
-			(predictTimeMS / 1000.0)
+    knnGPU, err := knn.New(
+        knn.WithBackend(knn.BackendGPU),
+        knn.WithK(config.K),
+    )
+    if err != nil {
+        return result, err
+    }
+    defer knnGPU.Close()
 
-	result.TotalTimeMS =
-		result.TrainTimeMS +
-			predictTimeMS
+    knnCPU, err := knn.New(
+        knn.WithBackend(knn.BackendCPU),
+        knn.WithK(config.K),
+    )
+    if err != nil {
+        return result, err
+    }
+    defer knnCPU.Close()
 
-	return result, nil
+    //-------------------------------------------------
+    // TRAIN GPU
+    //-------------------------------------------------
+
+    timer := benchmark.Timer{}
+    timer.Start()
+
+    if err := knnGPU.Fit(X, y); err != nil {
+        return result, err
+    }
+
+    result.GPUTrainTimeMS = timer.Stop()
+
+    //-------------------------------------------------
+    // TRAIN CPU
+    //-------------------------------------------------
+
+    timer.Start()
+
+    if err := knnCPU.Fit(X, y); err != nil {
+        return result, err
+    }
+
+    result.CPUTrainTimeMS = timer.Stop()
+
+    //-------------------------------------------------
+    // GPU warmup
+    //-------------------------------------------------
+
+    for i := 0; i < config.WarmupRuns; i++ {
+        _, err = knnGPU.Predict(X)
+        if err != nil {
+            return result, err
+        }
+    }
+
+    //-------------------------------------------------
+    // CPU warmup
+    //-------------------------------------------------
+
+    for i := 0; i < config.WarmupRuns; i++ {
+        _, err = knnCPU.Predict(X)
+        if err != nil {
+            return result, err
+        }
+    }
+
+    //-------------------------------------------------
+    // Benchmark GPU
+    //-------------------------------------------------
+
+    var gpuPred []int
+
+    gpuPred,
+        result.GPUPredictionTimeMS,
+        result.GPUThroughput,
+        result.GPURunCPUAvg,
+        result.GPURunCPUPeak,
+        err = benchmarkKNNGPU(
+        knnGPU,
+        X,
+        config.Repeats,
+    )
+    if err != nil {
+        return result, err
+    }
+
+    //-------------------------------------------------
+    // Benchmark CPU
+    //-------------------------------------------------
+
+    var cpuPred []int
+
+    cpuPred,
+        result.CPUPredictionTimeMS,
+        result.CPUThroughput,
+        result.CPURunCPUAvg,
+        result.CPURunCPUPeak,
+        err = benchmarkKNNCPU(
+        knnCPU,
+        X,
+        config.Repeats,
+    )
+    if err != nil {
+        return result, err
+    }
+
+    //-------------------------------------------------
+    // Verify predictions
+    //-------------------------------------------------
+
+    for i := range gpuPred {
+        if gpuPred[i] != cpuPred[i] {
+            return result, fmt.Errorf(
+                "CPU/GPU prediction mismatch at sample %d",
+                i,
+            )
+        }
+    }
+
+    //-------------------------------------------------
+    // Accuracy
+    //-------------------------------------------------
+
+    result.Accuracy = computeAccuracy(
+        gpuPred,
+        y,
+    )
+
+    return result, nil
+}
+
+func benchmarkKNNCPU(
+    knn *knn.KNN,
+    X [][]float32,
+    repeats int,
+) (
+    pred []int,
+    avgTimeMS float64,
+    throughput float64,
+    cpuAvg float64,
+    cpuPeak float64,
+    err error,
+) {
+
+    metrics, err := benchmark.NewMetrics()
+    if err != nil {
+        return
+    }
+    defer metrics.Close()
+
+    timer := benchmark.Timer{}
+
+    metrics.Start()
+    timer.Start()
+
+    for i := 0; i < repeats; i++ {
+        pred, err = knn.Predict(X)
+        if err != nil {
+            metrics.Stop()
+            return
+        }
+    }
+
+    avgTimeMS = timer.Stop() / float64(repeats)
+    metrics.Stop()
+
+    throughput = calculateThroughput(len(X), avgTimeMS)
+
+    cpuAvg = metrics.CPUAverage()
+    cpuPeak = metrics.CPUPeak()
+
+    return
+}
+
+func benchmarkKNNGPU(
+    knn *knn.KNN,
+    X [][]float32,
+    repeats int,
+) (
+    pred []int,
+    avgTimeMS float64,
+    throughput float64,
+    cpuAvg float64,
+    cpuPeak float64,
+    err error,
+) {
+
+    metrics, err := benchmark.NewMetrics()
+    if err != nil {
+        return
+    }
+    defer metrics.Close()
+
+    timer := benchmark.Timer{}
+
+    metrics.Start()
+    timer.Start()
+
+    for i := 0; i < repeats; i++ {
+        pred, err = knn.Predict(X)
+        if err != nil {
+            metrics.Stop()
+            return
+        }
+    }
+
+    avgTimeMS = timer.Stop() / float64(repeats)
+    metrics.Stop()
+
+    throughput = calculateThroughput(len(X), avgTimeMS)
+
+    cpuAvg = metrics.CPUAverage()
+    cpuPeak = metrics.CPUPeak()
+
+    return
+}
+
+func BenchmarkKMeans(
+    X [][]float32,
+    config Config,
+) (BenchmarkResult, error) {
+
+    result := BenchmarkResult{
+        Model:       "KMeans",
+        PredictRows: config.PredictRows,
+        CPUCores:    config.CPUCores,
+    }
+
+    //-------------------------------------------------
+    // CREATE MODELS
+    //-------------------------------------------------
+
+    kmGPU, err := kmeans.New(
+        kmeans.WithBackend(kmeans.BackendGPU),
+        kmeans.WithNClusters(config.NClusters),
+    )
+    if err != nil {
+        return result, err
+    }
+    defer kmGPU.Close()
+
+    kmCPU, err := kmeans.New(
+        kmeans.WithBackend(kmeans.BackendCPU),
+        kmeans.WithNClusters(config.NClusters),
+    )
+    if err != nil {
+        return result, err
+    }
+    defer kmCPU.Close()
+
+    //-------------------------------------------------
+    // TRAIN GPU
+    //-------------------------------------------------
+
+    timer := benchmark.Timer{}
+    timer.Start()
+
+    if err := kmGPU.Fit(X); err != nil {
+        return result, err
+    }
+
+    result.GPUTrainTimeMS = timer.Stop()
+
+    //-------------------------------------------------
+    // TRAIN CPU
+    //-------------------------------------------------
+
+    timer.Start()
+
+    if err := kmCPU.Fit(X); err != nil {
+        return result, err
+    }
+
+    result.CPUTrainTimeMS = timer.Stop()
+
+    //-------------------------------------------------
+    // WARMUP GPU
+    //-------------------------------------------------
+
+    for i := 0; i < config.WarmupRuns; i++ {
+        _, err = kmGPU.Predict(X)
+        if err != nil {
+            return result, err
+        }
+    }
+
+    //-------------------------------------------------
+    // WARMUP CPU
+    //-------------------------------------------------
+
+    for i := 0; i < config.WarmupRuns; i++ {
+        _, err = kmCPU.Predict(X)
+        if err != nil {
+            return result, err
+        }
+    }
+
+    //-------------------------------------------------
+    // GPU BENCH
+    //-------------------------------------------------
+
+    result.GPUPredictionTimeMS,
+        result.GPUThroughput,
+        result.GPURunCPUAvg,
+        result.GPURunCPUPeak,
+        err = benchmarkKMeansGPU(
+        kmGPU,
+        X,
+        config.Repeats,
+    )
+    if err != nil {
+        return result, err
+    }
+
+    //-------------------------------------------------
+    // CPU BENCH
+    //-------------------------------------------------
+
+    result.CPUPredictionTimeMS,
+        result.CPUThroughput,
+        result.CPURunCPUAvg,
+        result.CPURunCPUPeak,
+        err = benchmarkKMeansCPU(
+        kmCPU,
+        X,
+        config.Repeats,
+    )
+    if err != nil {
+        return result, err
+    }
+
+    return result, nil
+}
+
+func benchmarkKMeansCPU(
+    km *kmeans.KMeans,
+    X [][]float32,
+    repeats int,
+) (
+    avgTimeMS float64,
+    throughput float64,
+    cpuAvg float64,
+    cpuPeak float64,
+    err error,
+) {
+
+    metrics, err := benchmark.NewMetrics()
+    if err != nil {
+        return
+    }
+    defer metrics.Close()
+
+    timer := benchmark.Timer{}
+
+    metrics.Start()
+    timer.Start()
+
+    for i := 0; i < repeats; i++ {
+        _, err = km.Predict(X)
+        if err != nil {
+            metrics.Stop()
+            return
+        }
+    }
+
+    avgTimeMS = timer.Stop() / float64(repeats)
+    metrics.Stop()
+
+    throughput = calculateThroughput(len(X), avgTimeMS)
+
+    cpuAvg = metrics.CPUAverage()
+    cpuPeak = metrics.CPUPeak()
+
+    return
+}
+
+func benchmarkKMeansGPU(
+    km *kmeans.KMeans,
+    X [][]float32,
+    repeats int,
+) (
+    avgTimeMS float64,
+    throughput float64,
+    cpuAvg float64,
+    cpuPeak float64,
+    err error,
+) {
+
+    metrics, err := benchmark.NewMetrics()
+    if err != nil {
+        return
+    }
+    defer metrics.Close()
+
+    timer := benchmark.Timer{}
+
+    metrics.Start()
+    timer.Start()
+
+    for i := 0; i < repeats; i++ {
+        _, err = km.Predict(X)
+        if err != nil {
+            metrics.Stop()
+            return
+        }
+    }
+
+    avgTimeMS = timer.Stop() / float64(repeats)
+    metrics.Stop()
+
+    throughput = calculateThroughput(len(X), avgTimeMS)
+
+    cpuAvg = metrics.CPUAverage()
+    cpuPeak = metrics.CPUPeak()
+
+    return
 }

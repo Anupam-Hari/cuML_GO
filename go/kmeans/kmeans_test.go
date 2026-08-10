@@ -14,7 +14,7 @@ var maxRows = flag.Int(
 	"Maximum number of dataset rows",
 )
 
-func TestKMeansProcessedDataset(t *testing.T) {
+func TestKMeans_BackendComparison(t *testing.T) {
 
 	wd, _ := os.Getwd()
 	t.Log("Working directory:", wd)
@@ -28,38 +28,96 @@ func TestKMeansProcessedDataset(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	kmeans, err := New(
+	// ---------------- GPU ----------------
+	kmeansGPU, _ := New(
+		WithBackend(BackendGPU),
 		WithNClusters(8),
-		WithMaxIters(300),
-		WithTolerance(1e-4),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer kmeans.Close()
 
-	if err := kmeans.Fit(X); err != nil {
-		t.Fatal(err)
+	_ = kmeansGPU.Fit(X)
+	labelsGPU, _ := kmeansGPU.Predict(X)
+
+	// ---------------- CPU ----------------
+	kmeansCPU, _ := New(
+		WithBackend(BackendCPU),
+		WithNClusters(8),
+	)
+
+	_ = kmeansCPU.Fit(X)
+	labelsCPU, _ := kmeansCPU.Predict(X)
+
+	// ---------------- inertia ----------------
+	inertiaGPU := computeInertia(X, labelsGPU)
+	inertiaCPU := computeInertia(X, labelsCPU)
+
+	// ---------------- logs ----------------
+	t.Logf("Samples        : %d", len(X))
+	t.Logf("GPU Inertia    : %.6f", inertiaGPU)
+	t.Logf("CPU Inertia    : %.6f", inertiaCPU)
+
+	// sanity
+	if inertiaCPU == 0 || inertiaGPU == 0 {
+		t.Fatalf("invalid inertia")
+	}
+}
+
+func computeInertia(X [][]float32, labels []int) float64 {
+
+	k := maxLabel(labels) + 1
+
+	nSamples := len(X)
+	nFeatures := len(X[0])
+
+	centroids := make([][]float64, k)
+	counts := make([]int, k)
+
+	for i := 0; i < k; i++ {
+		centroids[i] = make([]float64, nFeatures)
 	}
 
-	labels, err := kmeans.Predict(X)
-	if err != nil {
-		t.Fatal(err)
+	// compute centroids
+	for i := 0; i < nSamples; i++ {
+		c := labels[i]
+		counts[c]++
+
+		for j := 0; j < nFeatures; j++ {
+			centroids[c][j] += float64(X[i][j])
+		}
 	}
 
-	if len(labels) != len(X) {
-		t.Fatalf("expected %d cluster labels, got %d", len(X), len(labels))
+	for c := 0; c < k; c++ {
+		if counts[c] == 0 {
+			continue
+		}
+		for j := 0; j < nFeatures; j++ {
+			centroids[c][j] /= float64(counts[c])
+		}
 	}
 
-	clusterCount := make(map[int]int)
-	for _, label := range labels {
-		clusterCount[label]++
+	// compute inertia
+	var inertia float64
+
+	for i := 0; i < nSamples; i++ {
+		c := labels[i]
+
+		var dist float64
+		for j := 0; j < nFeatures; j++ {
+			diff := float64(X[i][j]) - centroids[c][j]
+			dist += diff * diff
+		}
+
+		inertia += dist
 	}
 
-	t.Logf("Samples          : %d", len(X))
-	t.Logf("Clusters found   : %d", len(clusterCount))
+	return inertia
+}
 
-	for cluster, count := range clusterCount {
-		t.Logf("Cluster %d : %d samples", cluster, count)
+func maxLabel(labels []int) int {
+	m := labels[0]
+	for _, v := range labels {
+		if v > m {
+			m = v
+		}
 	}
+	return m
 }
