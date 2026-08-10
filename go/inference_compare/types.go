@@ -15,17 +15,13 @@ type BenchmarkResult struct {
 	CPUThroughput float64
 	GPUThroughput float64
 
-	CPUAvg  float64
-	CPUPeak float64
+	// CPU utilization during CPU inference
+	CPURunCPUAvg  float64
+	CPURunCPUPeak float64
 
-	GPUAvg  float64
-	GPUPeak float64
-
-	GPUVRAMAvgMB  float64
-	GPUVRAMPeakMB float64
-
-	CPUMemoryAvgMB  float64
-	CPUMemoryPeakMB float64
+	// CPU utilization during GPU inference
+	GPURunCPUAvg  float64
+	GPURunCPUPeak float64
 
 	CPUCores int
 }

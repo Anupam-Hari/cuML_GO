@@ -19,11 +19,11 @@ func main() {
 
 		PredictRows: 1000,
 
-		Repeats: 20,
+		Repeats: 50,
 
-		WarmupRuns: 5,
+		WarmupRuns: 10,
 
-		CPUCores: 0,
+		CPUCores: 8,
 
 		SampleInterval: 20 * time.Millisecond,
 	}
@@ -87,22 +87,17 @@ func main() {
 		cfg := config
 		cfg.PredictRows = rows
 
-		for run := 0; run < config.Repeats; run++ {
-
-			result, err := BenchmarkRFInference(
-				rf,
-				X_,
-				y_,
-				cfg,
-			)
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			result.Run = run
-
-			results = append(results, result)
+		result, err := BenchmarkRFInference(
+			rf,
+			X_,
+			y_,
+			cfg,
+		)
+		if err != nil {
+			log.Fatal(err)
 		}
+
+		results = append(results, result)
 	}
 
 	timestamp := time.Now().Format("020106150405")

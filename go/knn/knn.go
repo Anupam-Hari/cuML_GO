@@ -1,7 +1,7 @@
 package knn
 
 import (
-	"fmt"
+	//"fmt"
 	"unsafe"
 
 	"github.com/Anupam-Hari/cuml-go/go/internal/capi"
@@ -9,12 +9,25 @@ import (
 )
 
 type KNN struct {
-	handle *capi.KNNHandle
+    gpu *capi.KNNHandle
+    cpu *capi.KNNCPUHandle
 
-	k int
+    k       int
+    backend int
 }
 
 type Option func(*KNN)
+
+const (
+    BackendCPU = 0
+    BackendGPU = 1
+)
+
+func WithBackend(b int) Option {
+    return func(knn *KNN) {
+        knn.backend = b
+    }
+}
 
 func WithK(k int) Option {
 	return func(knn *KNN) {
@@ -23,82 +36,113 @@ func WithK(k int) Option {
 }
 
 func New(opts ...Option) (*KNN, error) {
-	knn := &KNN{
-		k: 5,
-	}
+    knn := &KNN{
+        k:       5,
+        backend: BackendGPU,
+    }
 
-	for _, opt := range opts {
-		opt(knn)
-	}
+    for _, opt := range opts {
+        opt(knn)
+    }
 
-	handle, err := capi.KNNCreate(
-		knn.k,
-	)
-	if err != nil {
-		return nil, err
-	}
+    if knn.backend == BackendGPU {
+        h, err := capi.KNNCreate(knn.k)
+        if err != nil {
+            return nil, err
+        }
+        knn.gpu = h
+    }
 
-	knn.handle = handle
-
-	return knn, nil
+    return knn, nil
 }
 
 func (knn *KNN) Fit(X [][]float32, y []int) error {
-	if knn.handle == nil {
-		return fmt.Errorf("KNN is closed")
-	}
 
-	dense, err := matrix.From2D(X)
+    dense, err := matrix.From2D(X)
+    if err != nil {
+        return err
+    }
+
+    labels := matrix.ToCInt(y)
+
+    if knn.backend == BackendGPU {
+
+        return capi.KNNFit(
+            knn.gpu,
+            dense.Data,
+            dense.Rows,
+            dense.Cols,
+            labels,
+        )
+    }
+
+	nClasses, err := matrix.NumClasses(y)
 	if err != nil {
 		return err
 	}
 
-	if len(y) != dense.Rows {
-		return fmt.Errorf("number of labels does not match number of rows")
-	}
+    // CPU path
+    knn.cpu = capi.KNNCPUCreate(
+        dense.Data,
+        labels,
+        dense.Rows,
+        dense.Cols,
+        nClasses,
+    )
 
-	labels := matrix.ToCInt(y)
-
-	return capi.KNNFit(
-		knn.handle,
-		dense.Data,
-		dense.Rows,
-		dense.Cols,
-		labels,
-	)
+    return nil
 }
 
 func (knn *KNN) Predict(X [][]float32) ([]int, error) {
-	if knn.handle == nil {
-		return nil, fmt.Errorf("KNN is closed")
-	}
 
-	dense, err := matrix.From2D(X)
-	if err != nil {
-		return nil, err
-	}
+    dense, err := matrix.From2D(X)
+    if err != nil {
+        return nil, err
+    }
 
-	predictions, err := capi.KNNPredict(
-		knn.handle,
-		dense.Data,
-		dense.Rows,
-		dense.Cols,
-	)
-	if err != nil {
-		return nil, err
-	}
+    if knn.backend == BackendGPU {
 
-	return matrix.FromCInt32(predictions), nil
+        pred, err := capi.KNNPredict(
+            knn.gpu,
+            dense.Data,
+            dense.Rows,
+            dense.Cols,
+        )
+        if err != nil {
+            return nil, err
+        }
+
+        return matrix.FromCInt32(pred), nil
+    }
+
+    // CPU path
+    pred := capi.KNNCPUPredict(
+        knn.cpu,
+        dense.Data,
+        dense.Rows,
+        knn.k,
+    )
+
+    return matrix.FromCInt32(pred), nil
 }
 
 func (knn *KNN) Close() {
-	if knn.handle != nil {
-		capi.KNNDestroy(knn.handle)
-		knn.handle = nil
-	}
+
+    if knn.gpu != nil {
+        capi.KNNDestroy(knn.gpu)
+        knn.gpu = nil
+    }
+
+    if knn.cpu != nil {
+        capi.KNNCPUFree(knn.cpu)
+        knn.cpu = nil
+    }
 }
 
 // Prevent accidental copying of a live model.
 func (knn *KNN) Handle() unsafe.Pointer {
-	return unsafe.Pointer(knn.handle)
+    if knn.backend == BackendGPU {
+        return unsafe.Pointer(knn.gpu)
+    }
+    return unsafe.Pointer(knn.cpu)
 }

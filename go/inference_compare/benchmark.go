@@ -45,14 +45,13 @@ func calculateThroughput(
 func benchmarkCPU(
 	rf *randomforest.RandomForest,
 	X [][]float32,
+	repeats int,
 ) (
 	pred []int,
 	avgTimeMS float64,
 	throughput float64,
-	avgUtil float64,
-	peakUtil float64,
-	avgRAM float64,
-	peakRAM float64,
+	cpuAvg float64,
+    cpuPeak float64,
 	err error,
 ) {
 
@@ -68,16 +67,19 @@ func benchmarkCPU(
 
 	timer.Start()
 
-	pred, err = rf.Predict(
-		X,
-		randomforest.BackendCPU,
-	)
-	if err != nil {
-		metrics.Stop()
-		return
+	for i := 0; i < repeats; i++ {
+
+		pred, err = rf.Predict(
+			X,
+			randomforest.BackendCPU,
+		)
+		if err != nil {
+			metrics.Stop()
+			return
+		}
 	}
 
-	avgTimeMS = timer.Stop()
+	avgTimeMS = timer.Stop() / float64(repeats)
 
 	metrics.Stop()
 
@@ -86,26 +88,21 @@ func benchmarkCPU(
 		avgTimeMS,
 	)
 
-	avgUtil = metrics.CPUAverage()
-	peakUtil = metrics.CPUPeak()
-
-	avgRAM = metrics.CPUMemoryAverage()
-	peakRAM = metrics.CPUMemoryPeak()
-
+	cpuAvg = metrics.CPUAverage()
+	cpuPeak = metrics.CPUPeak()
 	return
 }
 
 func benchmarkGPU(
 	rf *randomforest.RandomForest,
 	X [][]float32,
+	repeats int,
 ) (
 	pred []int,
 	avgTimeMS float64,
 	throughput float64,
-	avgUtil float64,
-	peakUtil float64,
-	avgVRAM float64,
-	peakVRAM float64,
+	cpuAvg float64,
+    cpuPeak float64,
 	err error,
 ) {
 
@@ -121,16 +118,19 @@ func benchmarkGPU(
 
 	timer.Start()
 
-	pred, err = rf.Predict(
-		X,
-		randomforest.BackendGPU,
-	)
-	if err != nil {
-		metrics.Stop()
-		return
+	for i := 0; i < repeats; i++ {
+
+		pred, err = rf.Predict(
+			X,
+			randomforest.BackendGPU,
+		)
+		if err != nil {
+			metrics.Stop()
+			return
+		}
 	}
 
-	avgTimeMS = timer.Stop()
+	avgTimeMS = timer.Stop() / float64(repeats)
 
 	metrics.Stop()
 
@@ -139,11 +139,8 @@ func benchmarkGPU(
 		avgTimeMS,
 	)
 
-	avgUtil = metrics.GPUAverage()
-	peakUtil = metrics.GPUPeak()
-
-	avgVRAM = metrics.GPUMemoryAverage()
-	peakVRAM = metrics.GPUMemoryPeak()
+	cpuAvg = metrics.CPUAverage()
+	cpuPeak = metrics.CPUPeak()
 
 	return
 }
@@ -203,13 +200,12 @@ func BenchmarkRFInference(
 	gpuPred,
 		result.GPUPredictionTimeMS,
 		result.GPUThroughput,
-		result.GPUAvg,
-		result.GPUPeak,
-		result.GPUVRAMAvgMB,
-		result.GPUVRAMPeakMB,
+		result.GPURunCPUAvg,
+    	result.GPURunCPUPeak,
 		err = benchmarkGPU(
 		rf,
 		X,
+		config.Repeats,
 	)
 
 	if err != nil {
@@ -223,13 +219,12 @@ func BenchmarkRFInference(
 	cpuPred,
 		result.CPUPredictionTimeMS,
 		result.CPUThroughput,
-		result.CPUAvg,
-		result.CPUPeak,
-		result.CPUMemoryAvgMB,
-		result.CPUMemoryPeakMB,
+		result.CPURunCPUAvg,
+    	result.CPURunCPUPeak,
 		err = benchmarkCPU(
 		rf,
 		X,
+		config.Repeats,
 	)
 
 	if err != nil {

@@ -12,6 +12,7 @@ add_library(cumlgo SHARED
     cpp/random_forest/random_forest.cpp
     cpp/kmeans/kmeans.cpp
     cpp/knn/knn.cpp
+    cpp/knn_cpu/knn_cpu.cpp
     cpp/common/cuda_utils.cpp
     cpp/gpu_monitor/gpu_monitor.cpp
 )

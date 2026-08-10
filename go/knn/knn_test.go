@@ -1,9 +1,9 @@
 package knn
 
 import (
-	"testing"
-	"os"
 	"flag"
+	"os"
+	"testing"
 
 	"github.com/Anupam-Hari/cuml-go/go/internal/dataset"
 )
@@ -14,7 +14,7 @@ var maxRows = flag.Int(
 	"Maximum number of dataset rows",
 )
 
-func TestKNNProcessedDataset(t *testing.T) {
+func TestKNN_BackendComparison(t *testing.T) {
 
 	wd, _ := os.Getwd()
 	t.Log("Working directory:", wd)
@@ -28,36 +28,65 @@ func TestKNNProcessedDataset(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	knn, err := New(
+	// ---------------- GPU ----------------
+	knnGPU, err := New(
 		WithK(5),
+		WithBackend(BackendGPU),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer knn.Close()
+	defer knnGPU.Close()
 
-	if err := knn.Fit(X, y); err != nil {
+	if err := knnGPU.Fit(X, y); err != nil {
 		t.Fatal(err)
 	}
 
-	pred, err := knn.Predict(X)
+	predGPU, err := knnGPU.Predict(X)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(pred) != len(y) {
-		t.Fatalf("expected %d predictions, got %d", len(y), len(pred))
+	accGPU := computeAccuracy(predGPU, y)
+
+	// ---------------- CPU ----------------
+	knnCPU, err := New(
+		WithK(5),
+		WithBackend(BackendCPU),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer knnCPU.Close()
+
+	if err := knnCPU.Fit(X, y); err != nil {
+		t.Fatal(err)
 	}
 
+	predCPU, err := knnCPU.Predict(X)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	accCPU := computeAccuracy(predCPU, y)
+
+	// ---------------- Compare ----------------
+	t.Logf("Samples       : %d", len(y))
+	t.Logf("GPU Accuracy  : %.2f%%", accGPU*100)
+	t.Logf("CPU Accuracy  : %.2f%%", accCPU*100)
+
+	// optional strict check
+	if len(predCPU) != len(predGPU) {
+		t.Fatalf("prediction length mismatch CPU=%d GPU=%d", len(predCPU), len(predGPU))
+	}
+}
+
+func computeAccuracy(pred, y []int) float64 {
 	correct := 0
 	for i := range pred {
 		if pred[i] == y[i] {
 			correct++
 		}
 	}
-
-	accuracy := float64(correct) / float64(len(y))
-
-	t.Logf("Samples  : %d", len(y))
-	t.Logf("Accuracy : %.2f%%", accuracy*100)
+	return float64(correct) / float64(len(y))
 }

@@ -25,17 +25,11 @@ type summaryValue struct {
 	CPUThroughput float64
 	GPUThroughput float64
 
-	CPUAvg  float64
-	CPUPeak float64
+	CPURunCPUAvg  float64
+	CPURunCPUPeak float64
 
-	GPUAvg  float64
-	GPUPeak float64
-
-	GPUVRAMAvg  float64
-	GPUVRAMPeak float64
-
-	CPUMemAvg  float64
-	CPUMemPeak float64
+	GPURunCPUAvg  float64
+	GPURunCPUPeak float64
 
 	CPUCores int
 }
@@ -65,14 +59,10 @@ func WriteResultsCSV(
 		"GPUPredictionTime(ms)",
 		"CPUThroughput(samples/sec)",
 		"GPUThroughput(samples/sec)",
-		"CPUAvg(%)",
-		"CPUPeak(%)",
-		"GPUAvg(%)",
-		"GPUPeak(%)",
-		"GPUVRAMAvg(MB)",
-		"GPUVRAMPeak(MB)",
-		"CPUMemoryAvg(MB)",
-		"CPUMemoryPeak(MB)",
+		"CPURunCPUAvg(%)",
+		"CPURunCPUPeak(%)",
+		"GPURunCPUAvg(%)",
+		"GPURunCPUPeak(%)",
 		"CPUCores",
 	}
 
@@ -96,17 +86,11 @@ func WriteResultsCSV(
 			fmt.Sprintf("%.6f", r.CPUThroughput),
 			fmt.Sprintf("%.6f", r.GPUThroughput),
 
-			fmt.Sprintf("%.6f", r.CPUAvg),
-			fmt.Sprintf("%.6f", r.CPUPeak),
+			fmt.Sprintf("%.6f", r.CPURunCPUAvg),
+			fmt.Sprintf("%.6f", r.CPURunCPUPeak),
 
-			fmt.Sprintf("%.6f", r.GPUAvg),
-			fmt.Sprintf("%.6f", r.GPUPeak),
-
-			fmt.Sprintf("%.6f", r.GPUVRAMAvgMB),
-			fmt.Sprintf("%.6f", r.GPUVRAMPeakMB),
-
-			fmt.Sprintf("%.6f", r.CPUMemoryAvgMB),
-			fmt.Sprintf("%.6f", r.CPUMemoryPeakMB),
+			fmt.Sprintf("%.6f", r.GPURunCPUAvg),
+			fmt.Sprintf("%.6f", r.GPURunCPUPeak),
 
 			strconv.Itoa(r.CPUCores),
 		}
@@ -180,19 +164,13 @@ func WriteSummaryCSV(
 		cpuThr, _ := strconv.ParseFloat(row[6], 64)
 		gpuThr, _ := strconv.ParseFloat(row[7], 64)
 
-		cpuAvg, _ := strconv.ParseFloat(row[8], 64)
-		cpuPeak, _ := strconv.ParseFloat(row[9], 64)
+		cpuRunAvg, _ := strconv.ParseFloat(row[8], 64)
+		cpuRunPeak, _ := strconv.ParseFloat(row[9], 64)
 
-		gpuAvg, _ := strconv.ParseFloat(row[10], 64)
-		gpuPeak, _ := strconv.ParseFloat(row[11], 64)
+		gpuRunAvg, _ := strconv.ParseFloat(row[10], 64)
+		gpuRunPeak, _ := strconv.ParseFloat(row[11], 64)
 
-		gpuMemAvg, _ := strconv.ParseFloat(row[12], 64)
-		gpuMemPeak, _ := strconv.ParseFloat(row[13], 64)
-
-		cpuMemAvg, _ := strconv.ParseFloat(row[14], 64)
-		cpuMemPeak, _ := strconv.ParseFloat(row[15], 64)
-
-		cpuCores, _ := strconv.Atoi(row[16])
+		cpuCores, _ := strconv.Atoi(row[12])
 
 		s.Accuracy += accuracy
 
@@ -202,17 +180,17 @@ func WriteSummaryCSV(
 		s.CPUThroughput += cpuThr
 		s.GPUThroughput += gpuThr
 
-		s.CPUAvg += cpuAvg
-		s.CPUPeak += cpuPeak
+		s.CPURunCPUAvg += cpuRunAvg
 
-		s.GPUAvg += gpuAvg
-		s.GPUPeak += gpuPeak
+		if cpuRunPeak > s.CPURunCPUPeak {
+			s.CPURunCPUPeak = cpuRunPeak
+		}
 
-		s.GPUVRAMAvg += gpuMemAvg
-		s.GPUVRAMPeak += gpuMemPeak
+		s.GPURunCPUAvg += gpuRunAvg
 
-		s.CPUMemAvg += cpuMemAvg
-		s.CPUMemPeak += cpuMemPeak
+		if gpuRunPeak > s.GPURunCPUPeak {
+			s.GPURunCPUPeak = gpuRunPeak
+		}
 
 		s.CPUCores = cpuCores
 	}
@@ -248,14 +226,10 @@ func WriteSummaryCSV(
 		"AvgGPUPredictionTime(ms)",
 		"AvgCPUThroughput(samples/sec)",
 		"AvgGPUThroughput(samples/sec)",
-		"AvgCPUAvg(%)",
-		"AvgCPUPeak(%)",
-		"AvgGPUAvg(%)",
-		"AvgGPUPeak(%)",
-		"AvgGPUVRAMAvg(MB)",
-		"AvgGPUVRAMPeak(MB)",
-		"AvgCPUMemoryAvg(MB)",
-		"AvgCPUMemoryPeak(MB)",
+		"AvgCPURunCPUAvg(%)",
+		"MaxCPURunCPUPeak(%)",
+		"AvgGPURunCPUAvg(%)",
+		"MaxGPURunCPUPeak(%)",
 		"CPUCores",
 	})
 
@@ -276,17 +250,11 @@ func WriteSummaryCSV(
 			fmt.Sprintf("%.6f", s.CPUThroughput/float64(s.Runs)),
 			fmt.Sprintf("%.6f", s.GPUThroughput/float64(s.Runs)),
 
-			fmt.Sprintf("%.6f", s.CPUAvg/float64(s.Runs)),
-			fmt.Sprintf("%.6f", s.CPUPeak/float64(s.Runs)),
+			fmt.Sprintf("%.6f", s.CPURunCPUAvg/float64(s.Runs)),
+			fmt.Sprintf("%.6f", s.CPURunCPUPeak),
 
-			fmt.Sprintf("%.6f", s.GPUAvg/float64(s.Runs)),
-			fmt.Sprintf("%.6f", s.GPUPeak/float64(s.Runs)),
-
-			fmt.Sprintf("%.6f", s.GPUVRAMAvg/float64(s.Runs)),
-			fmt.Sprintf("%.6f", s.GPUVRAMPeak/float64(s.Runs)),
-
-			fmt.Sprintf("%.6f", s.CPUMemAvg/float64(s.Runs)),
-			fmt.Sprintf("%.6f", s.CPUMemPeak/float64(s.Runs)),
+			fmt.Sprintf("%.6f", s.GPURunCPUAvg/float64(s.Runs)),
+			fmt.Sprintf("%.6f", s.GPURunCPUPeak),
 
 			strconv.Itoa(s.CPUCores),
 		}
