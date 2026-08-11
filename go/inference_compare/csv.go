@@ -12,26 +12,15 @@ import (
 type summaryKey struct {
 	Model       string
 	PredictRows int
+	Backend string
 }
 
 type summaryValue struct {
-	Runs int
-
-	Accuracy float64
-
-	CPUPredTime float64
-	GPUPredTime float64
-
-	CPUThroughput float64
-	GPUThroughput float64
-
-	CPURunCPUAvg  float64
-	CPURunCPUPeak float64
-
-	GPURunCPUAvg  float64
-	GPURunCPUPeak float64
-
-	CPUCores int
+	Runs int 
+	Accuracy float64 
+	PredictionTime float64 
+	Throughput float64 
+	CPUAvg float64
 }
 
 func WriteResultsCSV(
@@ -51,19 +40,14 @@ func WriteResultsCSV(
 	writer := csv.NewWriter(file)
 
 	header := []string{
-		"Model",
-		"Run",
-		"PredictRows",
-		"Accuracy",
-		"CPUPredictionTime(ms)",
-		"GPUPredictionTime(ms)",
-		"CPUThroughput(samples/sec)",
-		"GPUThroughput(samples/sec)",
-		"CPURunCPUAvg(%)",
-		"CPURunCPUPeak(%)",
-		"GPURunCPUAvg(%)",
-		"GPURunCPUPeak(%)",
-		"CPUCores",
+		"Model", 
+		"Run", 
+		"Backend", 
+		"PredictRows", 
+		"Accuracy", 
+		"PredictionTime(ms)", 
+		"Throughput(samples/sec)", 
+		"CPUAvg(%)",
 	}
 
 	if err := writer.Write(header); err != nil {
@@ -74,25 +58,14 @@ func WriteResultsCSV(
 	for _, r := range results {
 
 		record := []string{
-			r.Model,
-			strconv.Itoa(r.Run),
-			strconv.Itoa(r.PredictRows),
-
-			fmt.Sprintf("%.6f", r.Accuracy),
-
-			fmt.Sprintf("%.6f", r.CPUPredictionTimeMS),
-			fmt.Sprintf("%.6f", r.GPUPredictionTimeMS),
-
-			fmt.Sprintf("%.6f", r.CPUThroughput),
-			fmt.Sprintf("%.6f", r.GPUThroughput),
-
-			fmt.Sprintf("%.6f", r.CPURunCPUAvg),
-			fmt.Sprintf("%.6f", r.CPURunCPUPeak),
-
-			fmt.Sprintf("%.6f", r.GPURunCPUAvg),
-			fmt.Sprintf("%.6f", r.GPURunCPUPeak),
-
-			strconv.Itoa(r.CPUCores),
+			r.Model, 
+			strconv.Itoa(r.Run), 
+			r.Backend, 
+			strconv.Itoa(r.PredictRows), 
+			fmt.Sprintf("%.6f", r.Accuracy), 
+			fmt.Sprintf("%.6f", r.PredictionTimeMS), 
+			fmt.Sprintf("%.6f", r.Throughput), 
+			fmt.Sprintf("%.6f", r.CPUAvg), 
 		}
 
 		if err := writer.Write(record); err != nil {
@@ -141,11 +114,15 @@ func WriteSummaryCSV(
 			continue
 		}
 
-		predictRows, _ := strconv.Atoi(row[2])
+		predictRows, err := strconv.Atoi(row[3])
+		if err != nil { 
+			return fmt.Errorf("invalid PredictRows value %q: %w", row[3], err) 
+		}
 
 		key := summaryKey{
 			Model:       row[0],
 			PredictRows: predictRows,
+			Backend: row[2],
 		}
 
 		if _, ok := summary[key]; !ok {
@@ -156,43 +133,19 @@ func WriteSummaryCSV(
 
 		s.Runs++
 
-		accuracy, _ := strconv.ParseFloat(row[3], 64)
+		accuracy, _ := strconv.ParseFloat(row[4], 64)
 
-		cpuPred, _ := strconv.ParseFloat(row[4], 64)
-		gpuPred, _ := strconv.ParseFloat(row[5], 64)
+		predictionTime, _ := strconv.ParseFloat(row[5], 64)
+		throughput, _ := strconv.ParseFloat(row[6], 64)
 
-		cpuThr, _ := strconv.ParseFloat(row[6], 64)
-		gpuThr, _ := strconv.ParseFloat(row[7], 64)
-
-		cpuRunAvg, _ := strconv.ParseFloat(row[8], 64)
-		cpuRunPeak, _ := strconv.ParseFloat(row[9], 64)
-
-		gpuRunAvg, _ := strconv.ParseFloat(row[10], 64)
-		gpuRunPeak, _ := strconv.ParseFloat(row[11], 64)
-
-		cpuCores, _ := strconv.Atoi(row[12])
+		cpuAvg, _ := strconv.ParseFloat(row[7], 64)
 
 		s.Accuracy += accuracy
 
-		s.CPUPredTime += cpuPred
-		s.GPUPredTime += gpuPred
+		s.PredictionTime += predictionTime 
+		s.Throughput += throughput 
+		s.CPUAvg += cpuAvg
 
-		s.CPUThroughput += cpuThr
-		s.GPUThroughput += gpuThr
-
-		s.CPURunCPUAvg += cpuRunAvg
-
-		if cpuRunPeak > s.CPURunCPUPeak {
-			s.CPURunCPUPeak = cpuRunPeak
-		}
-
-		s.GPURunCPUAvg += gpuRunAvg
-
-		if gpuRunPeak > s.GPURunCPUPeak {
-			s.GPURunCPUPeak = gpuRunPeak
-		}
-
-		s.CPUCores = cpuCores
 	}
 
 	keys := make([]summaryKey, 0, len(summary))
@@ -218,45 +171,29 @@ func WriteSummaryCSV(
 	writer := csv.NewWriter(out)
 
 	writer.Write([]string{
-		"Model",
-		"PredictRows",
-		"Runs",
-		"AvgAccuracy",
-		"AvgCPUPredictionTime(ms)",
-		"AvgGPUPredictionTime(ms)",
-		"AvgCPUThroughput(samples/sec)",
-		"AvgGPUThroughput(samples/sec)",
-		"AvgCPURunCPUAvg(%)",
-		"MaxCPURunCPUPeak(%)",
-		"AvgGPURunCPUAvg(%)",
-		"MaxGPURunCPUPeak(%)",
-		"CPUCores",
+		"Model", 
+		"PredictRows", 
+		"Backend", 
+		"Runs", 
+		"AvgAccuracy", 
+		"AvgPredictionTime(ms)", 
+		"AvgThroughput(samples/sec)", 
+		"AvgCPU(%)",
 	})
 
 	for _, key := range keys {
 
 		s := summary[key]
+		runs := float64(s.Runs)
 
 		record := []string{
-			key.Model,
-			strconv.Itoa(key.PredictRows),
-			strconv.Itoa(s.Runs),
-
-			fmt.Sprintf("%.6f", s.Accuracy/float64(s.Runs)),
-
-			fmt.Sprintf("%.6f", s.CPUPredTime/float64(s.Runs)),
-			fmt.Sprintf("%.6f", s.GPUPredTime/float64(s.Runs)),
-
-			fmt.Sprintf("%.6f", s.CPUThroughput/float64(s.Runs)),
-			fmt.Sprintf("%.6f", s.GPUThroughput/float64(s.Runs)),
-
-			fmt.Sprintf("%.6f", s.CPURunCPUAvg/float64(s.Runs)),
-			fmt.Sprintf("%.6f", s.CPURunCPUPeak),
-
-			fmt.Sprintf("%.6f", s.GPURunCPUAvg/float64(s.Runs)),
-			fmt.Sprintf("%.6f", s.GPURunCPUPeak),
-
-			strconv.Itoa(s.CPUCores),
+			key.Model, 
+			strconv.Itoa(key.PredictRows), 
+			key.Backend, strconv.Itoa(s.Runs), 
+			fmt.Sprintf("%.6f", s.Accuracy/runs), 
+			fmt.Sprintf("%.6f", s.PredictionTime/runs), 
+			fmt.Sprintf("%.6f", s.Throughput/runs), 
+			fmt.Sprintf("%.6f", s.CPUAvg/runs),
 		}
 
 		if err := writer.Write(record); err != nil {

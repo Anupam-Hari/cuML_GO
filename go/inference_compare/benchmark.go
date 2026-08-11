@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	benchmark "github.com/Anupam-Hari/cuml-go/go/internal/benchmark"
+	knn "github.com/Anupam-Hari/cuml-go/go/knn"
+	kmeans "github.com/Anupam-Hari/cuml-go/go/kmeans"
 	randomforest "github.com/Anupam-Hari/cuml-go/go/random_forest"
 )
 
@@ -25,8 +27,7 @@ func computeAccuracy(
 		}
 	}
 
-	return float64(correct) /
-		float64(len(labels))
+	return float64(correct) / float64(len(labels))
 }
 
 func calculateThroughput(
@@ -42,18 +43,49 @@ func calculateThroughput(
 		(avgPredictionTimeMS / 1000.0)
 }
 
-func benchmarkCPU(
-	rf *randomforest.RandomForest,
-	X [][]float32,
+// benchmarkBackend contains the common benchmarking procedure.
+// The model-specific Predict() call is supplied by the caller.
+func benchmarkBackend(
+	predict func() ([]int, error),
+	samples int,
 	repeats int,
+	warmupRuns int,
 ) (
 	pred []int,
 	avgTimeMS float64,
 	throughput float64,
 	cpuAvg float64,
-    cpuPeak float64,
 	err error,
 ) {
+
+	fmt.Printf(
+		"Benchmark backend: warmup=%d repeats=%d samples=%d\n",
+		warmupRuns,
+		repeats,
+		samples,
+	)
+
+	//-------------------------------------------------
+	// Warmup
+	//-------------------------------------------------
+
+	for i := 0; i < warmupRuns; i++ {
+
+		fmt.Printf("Warmup %d/%d\n", i+1, warmupRuns)
+
+		_, err = predict()
+		if err != nil {
+			return
+		}
+	}
+
+	fmt.Println("Warmup complete")
+
+	//-------------------------------------------------
+	// Metrics
+	//-------------------------------------------------
+
+	fmt.Println("Creating metrics")
 
 	metrics, err := benchmark.NewMetrics()
 	if err != nil {
@@ -61,199 +93,368 @@ func benchmarkCPU(
 	}
 	defer metrics.Close()
 
+	fmt.Println("Metrics created")
+
+	//-------------------------------------------------
+	// Benchmark
+	//-------------------------------------------------
+
 	timer := benchmark.Timer{}
 
+	fmt.Println("Starting metrics")
+
 	metrics.Start()
+
+	fmt.Println("Starting timer")
 
 	timer.Start()
 
 	for i := 0; i < repeats; i++ {
 
-		pred, err = rf.Predict(
-			X,
-			randomforest.BackendCPU,
-		)
+		fmt.Printf("Prediction %d/%d\n", i+1, repeats)
+
+		pred, err = predict()
 		if err != nil {
 			metrics.Stop()
 			return
 		}
 	}
 
+	fmt.Println("All predictions complete")
+
 	avgTimeMS = timer.Stop() / float64(repeats)
 
 	metrics.Stop()
 
+	fmt.Println("Metrics stopped")
+
 	throughput = calculateThroughput(
-		len(X),
+		samples,
 		avgTimeMS,
 	)
 
 	cpuAvg = metrics.CPUAverage()
-	cpuPeak = metrics.CPUPeak()
+
 	return
 }
 
-func benchmarkGPU(
-	rf *randomforest.RandomForest,
-	X [][]float32,
-	repeats int,
-) (
-	pred []int,
-	avgTimeMS float64,
+func createBenchmarkResult(
+	model string,
+	backend string,
+	predictRows int,
+	accuracy float64,
+	predictionTimeMS float64,
 	throughput float64,
 	cpuAvg float64,
-    cpuPeak float64,
-	err error,
-) {
+) BenchmarkResult {
 
-	metrics, err := benchmark.NewMetrics()
-	if err != nil {
-		return
+	return BenchmarkResult{
+		Model:            model,
+		Backend:          backend,
+		PredictRows:      predictRows,
+		Accuracy:         accuracy,
+		PredictionTimeMS: predictionTimeMS,
+		Throughput:       throughput,
+		CPUAvg:           cpuAvg,
 	}
-	defer metrics.Close()
+}
 
-	timer := benchmark.Timer{}
+func comparePredictions(
+	cpuPred []int,
+	gpuPred []int,
+) error {
 
-	metrics.Start()
-
-	timer.Start()
-
-	for i := 0; i < repeats; i++ {
-
-		pred, err = rf.Predict(
-			X,
-			randomforest.BackendGPU,
+	if len(cpuPred) != len(gpuPred) {
+		return fmt.Errorf(
+			"CPU/GPU prediction length mismatch: CPU=%d GPU=%d",
+			len(cpuPred),
+			len(gpuPred),
 		)
-		if err != nil {
-			metrics.Stop()
-			return
+	}
+
+	for i := range gpuPred {
+
+		if gpuPred[i] != cpuPred[i] {
+			return fmt.Errorf(
+				"CPU/GPU prediction mismatch at sample %d: CPU=%d GPU=%d",
+				i,
+				cpuPred[i],
+				gpuPred[i],
+			)
 		}
 	}
 
-	avgTimeMS = timer.Stop() / float64(repeats)
-
-	metrics.Stop()
-
-	throughput = calculateThroughput(
-		len(X),
-		avgTimeMS,
-	)
-
-	cpuAvg = metrics.CPUAverage()
-	cpuPeak = metrics.CPUPeak()
-
-	return
+	return nil
 }
+
+//-------------------------------------------------
+// Random Forest
+//-------------------------------------------------
 
 func BenchmarkRFInference(
 	rf *randomforest.RandomForest,
 	X [][]float32,
 	y []int,
 	config Config,
-) (BenchmarkResult, error) {
+) ([]BenchmarkResult, error) {
 
-	result := BenchmarkResult{
-		Model:       "Random Forest Inference",
-		PredictRows: config.PredictRows,
-		CPUCores:    config.CPUCores,
-	}
-
-	var err error
-
-	var gpuPred []int
-	var cpuPred []int
+	const modelName = "Random Forest Inference"
 
 	//-------------------------------------------------
-	// GPU warmup
-	//-------------------------------------------------
-
-	for i := 0; i < config.WarmupRuns; i++ {
-
-		_, err = rf.Predict(
-			X,
-			randomforest.BackendGPU,
-		)
-		if err != nil {
-			return result, err
-		}
-	}
-
-	//-------------------------------------------------
-	// CPU warmup
-	//-------------------------------------------------
-
-	for i := 0; i < config.WarmupRuns; i++ {
-
-		_, err = rf.Predict(
-			X,
-			randomforest.BackendCPU,
-		)
-		if err != nil {
-			return result, err
-		}
-	}
-
-	//-------------------------------------------------
-	// Benchmark GPU
+	// GPU
 	//-------------------------------------------------
 
 	gpuPred,
-		result.GPUPredictionTimeMS,
-		result.GPUThroughput,
-		result.GPURunCPUAvg,
-    	result.GPURunCPUPeak,
-		err = benchmarkGPU(
-		rf,
-		X,
+	gpuTime,
+	gpuThroughput,
+	gpuCPUAvg,
+	err := benchmarkBackend(
+		func() ([]int, error) {
+			return rf.Predict(
+				X,
+				randomforest.BackendGPU,
+			)
+		},
+		len(X),
 		config.Repeats,
+		config.WarmupRuns,
 	)
 
 	if err != nil {
-		return result, err
+		return nil, err
 	}
 
 	//-------------------------------------------------
-	// Benchmark CPU
+	// CPU
 	//-------------------------------------------------
 
 	cpuPred,
-		result.CPUPredictionTimeMS,
-		result.CPUThroughput,
-		result.CPURunCPUAvg,
-    	result.CPURunCPUPeak,
-		err = benchmarkCPU(
-		rf,
-		X,
+		cpuTime,
+		cpuThroughput,
+		cpuCPUAvg,
+		err := benchmarkBackend(
+		func() ([]int, error) {
+			return rf.Predict(
+				X,
+				randomforest.BackendCPU,
+			)
+		},
+		len(X),
 		config.Repeats,
+		config.WarmupRuns,
 	)
 
 	if err != nil {
-		return result, err
+		return nil, err
 	}
 
 	//-------------------------------------------------
 	// Verify predictions
 	//-------------------------------------------------
 
-	for i := range gpuPred {
-
-		if gpuPred[i] != cpuPred[i] {
-
-			return result, fmt.Errorf(
-				"CPU/GPU prediction mismatch at sample %d",
-				i,
-			)
-		}
+	if err := comparePredictions(cpuPred, gpuPred); err != nil {
+		return nil, err
 	}
 
 	//-------------------------------------------------
-	// Accuracy
+	// Create results
 	//-------------------------------------------------
 
-	result.Accuracy = computeAccuracy(
-		gpuPred,
-		y,
+	gpuResult := createBenchmarkResult(
+		modelName,
+		"gpu",
+		config.PredictRows,
+		computeAccuracy(gpuPred, y),
+		gpuTime,
+		gpuThroughput,
+		gpuCPUAvg,
 	)
 
-	return result, nil
+	cpuResult := createBenchmarkResult(
+		modelName,
+		"cpu",
+		config.PredictRows,
+		computeAccuracy(cpuPred, y),
+		cpuTime,
+		cpuThroughput,
+		cpuCPUAvg,
+	)
+
+	return []BenchmarkResult{
+		gpuResult,
+		cpuResult,
+	}, nil
+}
+
+//-------------------------------------------------
+// KNN
+//-------------------------------------------------
+
+func BenchmarkKNNInference(
+	gpuModel *knn.KNN,
+	cpuModel *knn.KNN,
+	X [][]float32,
+	y []int,
+	config Config,
+) ([]BenchmarkResult, error) {
+
+	const modelName = "KNN Inference"
+
+	fmt.Println("KNN: starting GPU benchmark")
+
+	gpuPred,
+		gpuTime,
+		gpuThroughput,
+		gpuCPUAvg,
+		err := benchmarkBackend(
+		func() ([]int, error) {
+			fmt.Println("KNN: GPU predict")
+			return gpuModel.Predict(X)
+		},
+		len(X),
+		config.Repeats,
+		config.WarmupRuns,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("KNN: GPU benchmark complete")
+
+	fmt.Println("KNN: starting CPU benchmark")
+
+	cpuPred,
+		cpuTime,
+		cpuThroughput,
+		cpuCPUAvg,
+		err := benchmarkBackend(
+		func() ([]int, error) {
+			fmt.Println("KNN: CPU predict")
+			return cpuModel.Predict(X)
+		},
+		len(X),
+		config.Repeats,
+		config.WarmupRuns,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("KNN: CPU benchmark complete")
+
+	if err := comparePredictions(cpuPred, gpuPred); err != nil {
+		return nil, err
+	}
+
+	gpuResult := createBenchmarkResult(
+		modelName,
+		"gpu",
+		config.PredictRows,
+		computeAccuracy(gpuPred, y),
+		gpuTime,
+		gpuThroughput,
+		gpuCPUAvg,
+	)
+
+	cpuResult := createBenchmarkResult(
+		modelName,
+		"cpu",
+		config.PredictRows,
+		computeAccuracy(cpuPred, y),
+		cpuTime,
+		cpuThroughput,
+		cpuCPUAvg,
+	)
+
+	return []BenchmarkResult{
+		gpuResult,
+		cpuResult,
+	}, nil
+}
+
+//-------------------------------------------------
+// KMeans
+//-------------------------------------------------
+
+func BenchmarkKMeansInference(
+	gpuModel *kmeans.KMeans,
+	cpuModel *kmeans.KMeans,
+	X [][]float32,
+	config Config,
+) ([]BenchmarkResult, error) {
+
+	const modelName = "KMeans Inference"
+
+	//-------------------------------------------------
+	// GPU
+	//-------------------------------------------------
+
+	_,
+		gpuTime,
+		gpuThroughput,
+		gpuCPUAvg,
+		err := benchmarkBackend(
+		func() ([]int, error) {
+			return gpuModel.Predict(X)
+		},
+		len(X),
+		config.Repeats,
+		config.WarmupRuns,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	//-------------------------------------------------
+	// CPU
+	//-------------------------------------------------
+
+	_,
+		cpuTime,
+		cpuThroughput,
+		cpuCPUAvg,
+		err := benchmarkBackend(
+		func() ([]int, error) {
+			return cpuModel.Predict(X)
+		},
+		len(X),
+		config.Repeats,
+		config.WarmupRuns,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	//-------------------------------------------------
+	// Create results
+	//-------------------------------------------------
+
+	gpuResult := createBenchmarkResult(
+		modelName,
+		"gpu",
+		config.PredictRows,
+		0,
+		gpuTime,
+		gpuThroughput,
+		gpuCPUAvg,
+	)
+
+	cpuResult := createBenchmarkResult(
+		modelName,
+		"cpu",
+		config.PredictRows,
+		0,
+		cpuTime,
+		cpuThroughput,
+		cpuCPUAvg,
+	)
+
+	return []BenchmarkResult{
+		gpuResult,
+		cpuResult,
+	}, nil
 }
