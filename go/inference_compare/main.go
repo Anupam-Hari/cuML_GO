@@ -100,28 +100,28 @@ func main() {
 
 		PredictRows: 1000,
 
-		Repeats: 1,
+		Repeats: 5,
 
-		WarmupRuns: 0,
+		WarmupRuns: 1,
 
 		CPUCores: 8,
 
 		SampleInterval: 20 * time.Millisecond,
 	}
 
-	const trainingRows = 5_000_000
+	const trainingRows = 1_000_000
 
 
 	predictRows := []int{
 		1000,
-		// 10000,
-		// 20000,
-		// 30000,
-		// 40000,
-		// 50000,
-		// 60000,
-		// 70000,
-		// 80000,
+		10000,
+		//20000,
+		//30000,
+		//40000,
+		50000,
+		//60000,
+		//70000,
+		80000,
 	}
 
 	maxRows := trainingRows
@@ -247,52 +247,52 @@ func main() {
 	}
 	fmt.Printf("All KNN benchmark completed\n")
 
-	fmt.Println("Starting KMeans training...")
+	// fmt.Println("Starting KMeans training...")
 
-	kmeansGPU, kmeansCPU, err := TrainKMeans(
-		XTrain,
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
+	// kmeansGPU, kmeansCPU, err := TrainKMeans(
+	// 	XTrain,
+	// )
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
-	defer kmeansGPU.Close()
-	defer kmeansCPU.Close()
+	// defer kmeansGPU.Close()
+	// defer kmeansCPU.Close()
 
-	fmt.Println("KMeans training complete")
+	// fmt.Println("KMeans training complete")
 
-	for _, rows := range predictRows {
-		fmt.Printf("KMeans benchmark: %d rows\n", rows)
+	// for _, rows := range predictRows {
+	// 	fmt.Printf("KMeans benchmark: %d rows\n", rows)
 
-		if rows > len(X) {
-			log.Fatalf(
-				"predict rows (%d) exceeds dataset size (%d)",
-				rows,
-				len(X),
-			)
-		}
+	// 	if rows > len(X) {
+	// 		log.Fatalf(
+	// 			"predict rows (%d) exceeds dataset size (%d)",
+	// 			rows,
+	// 			len(X),
+	// 		)
+	// 	}
 
-		start := len(X) - rows
+	// 	start := len(X) - rows
 
-		X_ := X[start:]
+	// 	X_ := X[start:]
 
-		cfg := config
-		cfg.PredictRows = rows
+	// 	cfg := config
+	// 	cfg.PredictRows = rows
 
-		benchmarkResults, err := BenchmarkKMeansInference(
-			kmeansGPU,
-			kmeansCPU,
-			X_,
-			cfg,
-		)
-		if err != nil {
-			log.Fatal(err)
-		}
+	// 	benchmarkResults, err := BenchmarkKMeansInference(
+	// 		kmeansGPU,
+	// 		kmeansCPU,
+	// 		X_,
+	// 		cfg,
+	// 	)
+	// 	if err != nil {
+	// 		log.Fatal(err)
+	// 	}
 
-		results = append(results, benchmarkResults...)
-		fmt.Printf("KMeans benchmark complete: %d rows\n", rows)
-	}
-	fmt.Println("All KMeans benchmarks complete")
+	// 	results = append(results, benchmarkResults...)
+	// 	fmt.Printf("KMeans benchmark complete: %d rows\n", rows)
+	// }
+	// fmt.Println("All KMeans benchmarks complete")
 
 	timestamp := time.Now().Format("020106150405")
 
