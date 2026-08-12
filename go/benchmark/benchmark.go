@@ -133,23 +133,10 @@ func BenchmarkRandomForest(dataset benchmarkutil.Dataset) (BenchmarkResult, erro
 		split.YTest,
 	)
 
-	//-------------------------------------------------
-	// ASSIGN GPU RESULTS
-	//-------------------------------------------------
-
-	result.GPUPredictionTimeMS = gpuTime
-	result.GPUThroughput = gpuThroughput
-	result.GPURunCPUAvg = gpuCPUAvg
-	result.GPURunCPUPeak = gpuCPUPeak
-
-	//-------------------------------------------------
-	// ASSIGN CPU RESULTS
-	//-------------------------------------------------
 
 	result.CPUPredictionTimeMS = cpuTime
 	result.CPUThroughput = cpuThroughput
 	result.CPURunCPUAvg = cpuCPUAvg
-	result.CPURunCPUPeak = cpuCPUPeak
 
 	//-------------------------------------------------
 	// TOTAL

@@ -133,37 +133,29 @@ func main() {
 
 			printResult(rf)
 
-			// rf, err := BenchmarkRandomForest(ds)
-			// if err != nil {
-			// 	log.Fatal(err)
-			// }
-			// rf.Run = run
-			// allResults = append(allResults, rf)
-			// printResult(rf)
+			rf, err := BenchmarkRandomForest(ds)
+			if err != nil {
+				log.Fatal(err)
+			}
+			rf.Run = run
+			allResults = append(allResults, rf)
+			printResult(rf)
 
-			// rfCPU, err := BenchmarkGoLearnRandomForest(ds)
-			// if err != nil {
-			// 	log.Fatal(err)
-			// }
-			// rfCPU.Run = run
-			// allResults = append(allResults, rfCPU)
-			// printResult(rfCPU)
+			knn, err := BenchmarkKNN(ds)
+			if err != nil {
+				log.Fatal(err)
+			}
+			knn.Run = run
+			allResults = append(allResults, knn)
+			printResult(knn)
 
-			// knn, err := BenchmarkKNN(ds)
-			// if err != nil {
-			// 	log.Fatal(err)
-			// }
-			// knn.Run = run
-			// allResults = append(allResults, knn)
-			// printResult(knn)
-
-			// km, err := BenchmarkKMeans(ds)
-			// if err != nil {
-			// 	log.Fatal(err)
-			// }
-			// km.Run = run
-			// allResults = append(allResults, km)
-			// printResult(km)
+			km, err := BenchmarkKMeans(ds)
+			if err != nil {
+				log.Fatal(err)
+			}
+			km.Run = run
+			allResults = append(allResults, km)
+			printResult(km)
 		}
 	}
 
