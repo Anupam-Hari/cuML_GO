@@ -13,7 +13,7 @@ func TestTrainAndSaveModel(t *testing.T) {
 	X, y, err := dataset.LoadCSV(
 		"../../benchmark/data/processed_network_traffic.csv",
 		"is_malicious",
-		5000000,
+		1000000,
 	)
 	if err != nil {
 		t.Fatal(err)

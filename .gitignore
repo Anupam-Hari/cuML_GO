@@ -7,7 +7,9 @@ build/
 
 CMakeFiles/
 benchmark/results/
-go/results/
+go/inference_compare/results/
+go/benchmark/results/
+go/inference_compare/models/*
 CMakeCache.txt
 cmake_install.cmake
 Makefile
