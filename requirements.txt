@@ -1,0 +1,13 @@
+cuda-bindings @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_cuda-bindings_1782354988/work/cuda_bindings
+cuda-core @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_cuda-core_1783991353/work/cuda_core
+cuda-pathfinder @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_cuda-pathfinder_1782782777/work/cuda_pathfinder
+cuda-python @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_cuda-python_1782354997/work/cuda_python
+numpy @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_numpy_1783206200/work/dist/numpy-2.5.1-cp312-cp312-linux_x86_64.whl#sha256=d563f92f301d910b02b10774f7e5aeb1f09c4ba35a7363c61b32c65f425b1201
+nvidia-ml-py @ file:///home/conda/feedstock_root/build_artifacts/nvidia-ml-py_1780355630442/work
+packaging @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_packaging_1777103621/work
+rmm @ file:///tmp/conda-bld-output/bld/rattler-build_rmm/work/python/rmm
+scipy @ file:///home/conda/feedstock_root/build_artifacts/scipy-split_1781912125494/work/dist/scipy-1.18.0-cp312-cp312-linux_x86_64.whl#sha256=51c513d9d74b4588e22f8f3076c680b742e0421b3376f64052850d77f3849c34
+setuptools==83.0.0
+treelite @ file:///home/conda/feedstock_root/build_artifacts/treelite_1772918381001/work/python
+ucxx @ file:///tmp/conda-bld-output/bld/rattler-build_ucxx/work/python/ucxx
+wheel==0.47.0
