@@ -1,8 +1,8 @@
 package capi
 
 /*
-#cgo CFLAGS: -I${SRCDIR}/../../../cpp/kmeans_cpu
-#cgo LDFLAGS: -L${SRCDIR}/../../../build -lcumlgo
+#cgo CFLAGS: -I/home/anupam/projects/cuML_GO/cpp/kmeans_cpu
+#cgo LDFLAGS: -L/home/anupam/projects/cuML_GO/build -lcumlgo
 
 #include "kmeans_cpu.h"
 */

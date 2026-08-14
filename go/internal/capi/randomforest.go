@@ -1,8 +1,8 @@
 package capi
 
 /*
-#cgo CFLAGS: -I${SRCDIR}/../../../cpp/random_forest
-#cgo LDFLAGS: -L${SRCDIR}/../../../build -lcumlgo
+#cgo CFLAGS: -I/home/anupam/projects/cuML_GO/cpp/random_forest
+#cgo LDFLAGS: -L/home/anupam/projects/cuML_GO/build -lcumlgo
 
 #include "random_forest.h"
 #include <stdlib.h>

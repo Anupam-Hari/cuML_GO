@@ -4,11 +4,13 @@ project(cuml_go LANGUAGES CXX CUDA)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-find_package(BLAS REQUIRED)
 
 find_package(cuml CONFIG REQUIRED)
 find_package(raft CONFIG REQUIRED)
 find_package(OpenMP REQUIRED)
+
+set(OPENBLAS_INCLUDE_DIR "/usr/include/x86_64-linux-gnu/openblas-pthread")
+set(OPENBLAS_LIBRARY "/usr/lib/x86_64-linux-gnu/libopenblas.so")
 
 add_library(cumlgo SHARED
     cpp/random_forest/random_forest.cpp
@@ -22,13 +24,13 @@ add_library(cumlgo SHARED
 
 target_include_directories(cumlgo PRIVATE
     ${CMAKE_SOURCE_DIR}/cpp
-    /usr/include/x86_64-linux-gnu
+    ${OPENBLAS_INCLUDE_DIR}
 )
 
 target_link_libraries(cumlgo PRIVATE
     PRIVATE
     cuml::cuml
-    ${BLAS_LIBRARIES}
+    ${OPENBLAS_LIBRARY}
     OpenMP::OpenMP_CXX
 )
 

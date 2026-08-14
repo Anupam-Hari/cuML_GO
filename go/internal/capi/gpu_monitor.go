@@ -1,8 +1,8 @@
 package capi
 
 /*
-#cgo CPPFLAGS: -I${SRCDIR}/../../../cpp/gpu_monitor
-#cgo LDFLAGS: -L${SRCDIR}/../../../build -L/usr/lib/x86_64-linux-gnu -lcumlgo -lnvidia-ml
+#cgo CFLAGS: -I/home/anupam/projects/cuML_GO/cpp/gpu_monitor
+#cgo LDFLAGS: -L/home/anupam/projects/cuML_GO/build -L/usr/lib/x86_64-linux-gnu -lcumlgo -lnvidia-ml
 
 #include "../../../cpp/gpu_monitor/gpu_monitor.h"
 */

@@ -1,8 +1,8 @@
 package capi
 
 /*
-#cgo CFLAGS: -I/home/anupam/projects/cuml-go/cpp/knn_cpu
-#cgo LDFLAGS: -L/home/anupam/projects/cuml-go/build -lcumlgo
+#cgo CFLAGS: -I/home/anupam/projects/cuML_GO/cpp/knn_cpu
+#cgo LDFLAGS: -L/home/anupam/projects/cuML_GO/build -lcumlgo
 #include "knn_cpu.h"
 */
 import "C"

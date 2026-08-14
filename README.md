@@ -1,6 +1,8 @@
 # cuML-Go
 
-A production-oriented Go wrapper around the NVIDIA RAPIDS cuML C++ API using cgo. This project provides native Go bindings for GPU-accelerated machine learning algorithms while keeping the Go API simple and idiomatic.
+A production-oriented Go wrapper around the NVIDIA RAPIDS cuML C++ API using cgo.
+
+This project provides native Go bindings for GPU-accelerated machine learning algorithms while maintaining an idiomatic Go API. The library supports both GPU-backed implementations through RAPIDS cuML and optimized native CPU implementations written in C++.
 
 Currently implemented models:
 
@@ -12,34 +14,43 @@ Currently implemented models:
 
 # Architecture
 
-The project follows a layered architecture where each layer has a single responsibility.
+The project follows a layered architecture in which each layer has a single responsibility.
 
 ```
-                USER APPLICATION
-                      │
-                      ▼
-          Go Public API (random_forest, knn, kmeans)
-                      │
-                      ▼
-            Go Internal C API Wrapper (capi)
-                      │
-                 cgo Boundary
-──────────────────────────────────────────────────────────
-                      │
-                      ▼
-               C Wrapper (extern "C")
-                      │
-                      ▼
-             C++ Wrapper (Custom Code)
-                      │
-                      ▼
-          NVIDIA RAPIDS cuML C++ Library
-                      │
-                      ▼
-                CUDA Runtime / GPU
+                          USER APPLICATION
+                                  │
+                                  ▼
+                 Go Public API (RF / KNN / KMeans)
+                                  │
+                                  ▼
+                          Internal Go Packages
+                                  │
+        ┌─────────────────────────┼─────────────────────────┐
+        │                         │                         │
+        ▼                         ▼                         ▼
+ internal/dataset           internal/matrix           internal/capi
+        │                         │                         │
+        └─────────────────────────┴─────────────────────────┘
+                                  │
+                             cgo Boundary
+──────────────────────────────────────────────────────────────────────
+                                  │
+        ┌─────────────────────────┼─────────────────────────┐
+        │                                                   │
+        ▼                                                   ▼
+                    Native CPU Implementations      RAPIDS GPU Implementations
+                               │                                 │
+                               ▼                                 ▼
+                        Custom C++ Code                  RAFT / cuML / cuBLAS
+                               │                                 │
+                               ▼                                 ▼
+                             OpenMP                          CUDA Runtime
+                               │                                 │
+                               ▼                                 ▼
+                              CPU                                GPU
 ```
 
-The Go user never interacts directly with C, C++, CUDA, or cuML.
+The Go user never interacts directly with C, C++, CUDA, or RAPIDS.
 
 ---
 
@@ -49,41 +60,57 @@ The Go user never interacts directly with C, C++, CUDA, or cuML.
 cuml-go/
 │
 ├── benchmark/
-│   ├── benchmark.cpp
-│   ├── benchmark.h
-│   ├── main.cpp
-│   ├── timer.h
-│   ├── result.h
-│   ├── dataset_loader.*
 │   ├── data/
 │   └── results/
 │
-├── cpp/
+├── inference_compare/
 │   ├── random_forest/
 │   ├── knn/
 │   └── kmeans/
-|
+│
+├── cpp/
+│   ├── random_forest/
+│   │   ├── random_forest.cpp
+│   │   ├── random_forest.h
+│   │   ├── random_forest_cpu.cpp
+│   │   └── random_forest_cpu.h
+│   │
+│   ├── knn/
+│   │   ├── knn.cpp
+│   │   ├── knn.h
+│   │   ├── knn_cpu.cpp
+│   │   └── knn_cpu.h
+│   │
+│   └── kmeans/
+│       ├── kmeans.cpp
+│       ├── kmeans.h
+│       ├── kmeans_cpu.cpp
+│       └── kmeans_cpu.h
+│
+├── go/
+│   ├── random_forest/
+│   ├── knn/
+│   └── kmeans/
+│
+├── internal/
+│   ├── benchmark/
+│   ├── capi/
+│   ├── csv/
+│   ├── dataset/
+│   ├── matrix/
+│   ├── result/
+│   └── timer/
+│
 ├── scripts/
 │   ├── build.sh
 │   ├── configure.sh
+│   └── env.sh
 │
-├── go/
-│   ├── main.go
-│   ├── benchmark.go
-│   ├── dataset.go
-│   ├── timer.go
-│   ├── result.go
-│   ├── csv.go
-│   │
-│   ├── internal/
-│   │   ├── capi/
-│   │   ├── matrix/
-│   │   └── dataset/
-│   │
-│   ├── random_forest/
-│   ├── knn/
-│   └── kmeans/
-│
+├── benchmark/
+├── environment.yml
+├── requirements.txt
+├── conda_packages.txt
+├── toolchain_versions.txt
 ├── CMakeLists.txt
 └── go.mod
 ```
@@ -100,7 +127,7 @@ go/knn/
 go/kmeans/
 ```
 
-This is the public API exposed to Go users.
+This is the public API exposed to Go applications.
 
 Example:
 
@@ -110,39 +137,95 @@ rf, _ := randomforest.New()
 rf.Fit(X, y)
 
 predictions, _ := rf.Predict(X)
+
+rf.Close()
 ```
 
 Responsibilities:
 
-- User-friendly API
+- User-facing API
 - Hyperparameter configuration
 - Input validation
-- Data conversion
+- Backend abstraction
 - Resource management
 
-No C or C++ code exists here.
+No C or C++ code exists in this layer.
 
 ---
 
-## 2. internal/capi
+## 2. internal/dataset
 
 ```
-go/internal/capi/
+internal/dataset/
+```
+
+Responsible for:
+
+- CSV parsing
+- Dataset loading
+- Feature extraction
+- Label extraction
+- Type conversion
+
+Output:
+
+```
+[][]float32
+
+[]int
+```
+
+---
+
+## 3. internal/matrix
+
+```
+internal/matrix/
+```
+
+Responsible for converting Go data structures into contiguous memory suitable for C and C++.
+
+Example:
+
+```
+[][]float32
+
+↓
+
+[]float32
+```
+
+Utilities include:
+
+- Matrix flattening
+- Label conversion
+- C integer conversion
+- Memory layout conversion
+
+This package performs memory layout conversion only.
+
+---
+
+## 4. internal/capi
+
+```
+internal/capi/
 ```
 
 This package is the only Go package that directly uses cgo.
 
 Responsibilities:
 
-- Calls C functions
-- Converts Go slices to C pointers
-- Converts C output back to Go
+- Converting Go slices to C pointers
+- Calling C functions
+- Converting C output back to Go
 - Error handling
 
 Example:
 
 ```
 Go slice
+
 ↓
 
 *C.float
@@ -156,7 +239,7 @@ Everything below this point is no longer Go.
 
 ---
 
-## 3. cgo Boundary
+## 5. cgo Boundary
 
 This is where execution leaves the Go runtime.
 
@@ -176,12 +259,12 @@ Only the `internal/capi` package crosses this boundary.
 
 ---
 
-## 4. C Wrapper
+## 6. C Wrapper
 
-Located in
+Located in:
 
 ```
-cpp/<model>/*.h
+cpp/<model>/
 ```
 
 Example:
@@ -200,51 +283,69 @@ int kmeans_predict(...);
 
 Responsibilities:
 
-- C-compatible interface
 - Stable ABI
+- C-compatible interface
 - Callable from Go
 
-This layer contains **no machine learning logic**.
+This layer contains no machine learning logic.
 
 ---
 
-## 5. C++ Wrapper
+## 7. CPU Implementations
 
-Located in
+Located in:
 
 ```
-cpp/random_forest/
-cpp/knn/
-cpp/kmeans/
+cpp/random_forest/random_forest_cpu.*
+cpp/knn/knn_cpu.*
+cpp/kmeans/kmeans_cpu.*
 ```
 
 Responsibilities:
 
-- Convert C API into C++ classes
-- Manage RAFT handles
-- Allocate GPU resources
-- Call cuML
+- Native C++ implementations
+- OpenMP parallelization
+- BLAS acceleration
+- Distance-matrix optimization
+- Heap optimization
 
-This layer contains the custom C++ implementation.
+These implementations do not depend on RAPIDS.
 
 ---
 
-## 6. NVIDIA RAPIDS cuML
+## 8. GPU Implementations
 
-Everything below this layer belongs to NVIDIA.
+Located in:
 
-Examples:
+```
+cpp/random_forest/random_forest.*
+cpp/knn/knn.*
+cpp/kmeans/kmeans.*
+```
 
-- Random Forest
-- KNN
-- KMeans
-- RAFT
-- CUDA kernels
+Responsibilities:
+
+- RAFT handle management
 - GPU memory management
+- RAPIDS integration
+- CUDA execution
 
-This project simply calls these APIs.
+---
 
-No modifications are made to NVIDIA code.
+## 9. NVIDIA RAPIDS Stack
+
+External dependencies:
+
+```
+libcuml
+libraft
+CUDA Runtime
+CUDA Driver
+cuBLAS
+OpenBLAS
+```
+
+These libraries are external dependencies and are not modified.
 
 ---
 
@@ -252,41 +353,43 @@ No modifications are made to NVIDIA code.
 
 ## Custom Code
 
-Everything in:
+Everything inside:
 
 ```
 go/
+
+internal/
 
 cpp/
 
 benchmark/
 
+inference_compare/
+
+scripts/
+
 CMakeLists.txt
 ```
 
-is written specifically for this project.
+was written specifically for this project.
 
 ---
 
-## NVIDIA Code
+## External Code
 
-Everything inside installed RAPIDS libraries:
+Everything provided by:
 
 ```
 libcuml
 
 libraft
 
-CUDA Runtime
+CUDA
 
-CUDA Driver
-
-cuBLAS
-
-etc.
+OpenBLAS
 ```
 
-These are external dependencies.
+belongs to the respective upstream projects.
 
 ---
 
@@ -310,7 +413,7 @@ RandomForest.Fit()
 
 ↓
 
-matrix.From2D()
+matrix.Flatten()
 
 ↓
 
@@ -326,205 +429,201 @@ C++ Wrapper
 
 ↓
 
-cuML
+RAPIDS or CPU Backend
 
 ↓
 
-GPU
+Prediction
 ```
 
 Prediction follows the same pipeline in reverse.
 
 ---
 
-# internal/matrix
+# Installation
 
-Purpose:
+## 1. Install Miniforge
 
-Convert Go data structures into contiguous memory suitable for C.
+```bash
+wget https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh
 
-Examples:
-
-```
-[][]float32
-
-↓
-
-[]float32
+bash Miniforge3-Linux-x86_64.sh
 ```
 
-Also contains utilities such as
+Restart the terminal.
 
-- NumClasses()
-- ToCInt()
-- FromCInt32()
+Verify:
 
-This package performs **memory layout conversion only**.
-
----
-
-# internal/dataset
-
-Responsible for
-
-- CSV parsing
-- Boolean conversion
-- Label extraction
-- Feature loading
-
-Output:
-
-```
-[][]float32
-
-[]int
+```bash
+conda --version
 ```
 
 ---
 
-# internal/capi
+## 2. Clone the Repository
 
-Contains wrappers like
+```bash
+git clone <repository-url>
 
+cd cuml-go
 ```
-RandomForestCreate()
-
-RandomForestFit()
-
-RandomForestPredict()
-
-KNNCreate()
-
-KNNFit()
-
-KNNPredict()
-
-KMeansCreate()
-
-KMeansFit()
-
-KMeansPredict()
-```
-
-These functions directly invoke C.
 
 ---
 
-# Build Instructions
+## 3. Create the Conda Environment
 
-## 1. Activate the RAPIDS Environment
+```bash
+conda env create -f environment.yml
+```
 
-Before building or running the project, activate and source the RAPIDS C++ conda environment.
+List environments:
+
+```bash
+conda env list
+```
+
+Activate the environment:
+
+```bash
+conda activate rapids-gcc14
+```
+
+If the environment name differs, inspect:
+
+```bash
+head environment.yml
+```
+
+---
+
+## 4. Install Python Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## 5. Install System Dependencies
+
+```bash
+sudo apt update
+
+sudo apt install \
+    build-essential \
+    gcc \
+    g++ \
+    cmake \
+    ninja-build \
+    pkg-config \
+    libopenblas-dev
+```
+
+---
+
+## 6. Verify CUDA
+
+```bash
+nvidia-smi
+
+nvcc --version
+```
+
+---
+
+## 7. Load the RAPIDS Environment
 
 ```bash
 source scripts/env.sh
 ```
 
+Current environment variables:
+
+```bash
+export OPENBLAS_NUM_THREADS=1
+
+export LD_LIBRARY_PATH="$PWD/build:$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"
+```
+
 ---
 
-## 2. Configure the Project
-
-Run the provided configuration script from the project root.
+## 8. Configure
 
 ```bash
 ./scripts/configure.sh
 ```
 
-This configures the CMake build directory and locates the required RAPIDS, CUDA, and C++ dependencies.
-
 ---
 
-## 3. Build
-
-Compile the project using the build script.
+## 9. Build
 
 ```bash
 ./scripts/build.sh
 ```
 
-This builds the shared library and all C++ executables.
+Generated artifacts are placed in:
 
-The generated artifacts are placed in the `build/` directory, including:
+```
+build/
+```
+
+Including:
 
 ```
 build/libcumlgo.so
 ```
 
-which is used by the Go cgo wrappers.
-
 ---
 
-# Running C++ Benchmark
+# Running Inference Comparison Tests
 
-From project root
-
-```bash
-./build/test_cuml
-```
-
-Outputs benchmark timings for
-
-- Random Forest
-- KNN
-- KMeans
-
-Results are written to
-
-```
-benchmark/results/
-```
-
----
-
-# Running Go Tests
-
-Random Forest
+Random Forest:
 
 ```bash
-go test -v ./go/random_forest
+go test -v ./inference_compare/random_forest
 ```
 
-KNN
+KNN:
 
 ```bash
-go test -v ./go/knn
+go test -v ./inference_compare/knn
 ```
 
-KMeans
+KMeans:
 
 ```bash
-go test -v ./go/kmeans
+go test -v ./inference_compare/kmeans
 ```
 
-Limit dataset size
+Limit dataset size:
 
 ```bash
-go test -v ./go/random_forest -args -rows=5000
+go test -v ./inference_compare/knn -args --rows=100000
 ```
 
 ---
 
-# Running Go Benchmark
+# Running Benchmarks
 
-Execute
+Execute:
 
 ```bash
 go run ./go
 ```
 
-Run on subset
+Run on a subset:
 
 ```bash
 go run ./go -rows=5000
 ```
 
-Results are automatically written to
+Results are automatically written to:
 
 ```
 benchmark/results/
 ```
 
-Example output
+Example output:
 
 ```
 go_benchmark_210726155230.csv
@@ -534,17 +633,17 @@ go_benchmark_210726155230.csv
 
 # CSV Output
 
-Generated CSV contains
+Generated CSV files contain:
 
 ```
 Model
+Backend
 TrainRows
-TestRows
-TrainTime(ms)
-PredictionThroughput(ops)
-TotalTime(ms)
-GPUAvg
-GPUPeak
+PredictionRows
+Accuracy
+PredictionTime(ms)
+Throughput(samples/sec)
+CPUUsage(%)
 ```
 
 ---
@@ -553,14 +652,12 @@ GPUPeak
 
 ## Random Forest
 
-Public API
-
 ```go
 rf, _ := randomforest.New()
 
 rf.Fit(X, y)
 
-pred, _ := rf.Predict(X)
+predictions, _ := rf.Predict(X)
 
 rf.Close()
 ```
@@ -574,7 +671,7 @@ knn, _ := knn.New()
 
 knn.Fit(X, y)
 
-pred, _ := knn.Predict(X)
+predictions, _ := knn.Predict(X)
 
 knn.Close()
 ```
@@ -597,43 +694,65 @@ km.Close()
 
 # Extending the Library
 
-To add a new cuML model:
+To add a new model:
 
-1. Create a C wrapper
+1. Add the C wrapper.
 
 ```
 cpp/new_model/
 ```
 
-2. Implement the C++ wrapper calling cuML.
+2. Implement the CPU backend.
 
-3. Add a cgo wrapper
+3. Implement the GPU backend.
+
+4. Add the cgo wrapper.
 
 ```
-go/internal/capi/
+internal/capi/
 ```
 
-4. Add a public Go package
+5. Add the public Go package.
 
 ```
 go/new_model/
 ```
 
-5. Write Go integration tests.
+6. Add inference comparison tests.
 
-6. Add benchmark implementation.
+```
+inference_compare/new_model/
+```
 
-No other parts of the project need modification.
+7. Add benchmark support.
+
+No other parts of the project need to be modified.
 
 ---
 
 # Design Goals
 
 - Native Go API
-- Zero Python dependency
+- Zero Python dependency during execution
 - Thin cgo layer
 - Minimal wrapper overhead
+- CPU and GPU backends
 - Modular architecture
-- Production-quality resource management
-- Easy addition of future cuML algorithms
-- Direct access to NVIDIA RAPIDS C++ libraries
+- Production-oriented resource management
+- Easy extension for future models
+- Direct access to RAPIDS C++ libraries
+
+---
+
+# Environment Reproducibility
+
+The repository includes the following environment files:
+
+| File | Purpose |
+| --- | --- |
+| `environment.yml` | Conda environment definition |
+| `requirements.txt` | Python dependencies |
+| `conda_packages.txt` | Complete Conda package list |
+| `toolchain_versions.txt` | Compiler, CMake, and CUDA versions |
+
+These files allow the development environment to be recreated on another machine.

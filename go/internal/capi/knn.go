@@ -1,8 +1,8 @@
 package capi
 
 /*
-#cgo CFLAGS: -I${SRCDIR}/../../../cpp/knn
-#cgo LDFLAGS: -L${SRCDIR}/../../../build -lcumlgo
+#cgo CFLAGS: -I/home/anupam/projects/cuML_GO/cpp/knn
+#cgo LDFLAGS: -L/home/anupam/projects/cuML_GO/build -lcumlgo
 
 #include "knn.h"
 */
