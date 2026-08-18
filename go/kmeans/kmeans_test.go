@@ -8,6 +8,8 @@ import (
 	"github.com/Anupam-Hari/cuml-go/go/internal/dataset"
 )
 
+const onnxModel = "../../exported_models/kmeans_100000_n_clusters-8_repeat-1.onnx"
+
 var maxRows = flag.Int(
 	"rows",
 	-1,
@@ -29,35 +31,107 @@ func TestKMeans_BackendComparison(t *testing.T) {
 	}
 
 	// ---------------- GPU ----------------
-	kmeansGPU, _ := New(
+
+	kmeansGPU, err := New(
 		WithBackend(BackendGPU),
 		WithNClusters(8),
 	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer kmeansGPU.Close()
 
-	_ = kmeansGPU.Fit(X)
-	labelsGPU, _ := kmeansGPU.Predict(X)
+	if err := kmeansGPU.Fit(X); err != nil {
+		t.Fatal(err)
+	}
+
+	labelsGPU, err := kmeansGPU.Predict(X)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// ---------------- CPU ----------------
-	kmeansCPU, _ := New(
+
+	kmeansCPU, err := New(
 		WithBackend(BackendCPU),
 		WithNClusters(8),
 	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer kmeansCPU.Close()
 
-	_ = kmeansCPU.Fit(X)
-	labelsCPU, _ := kmeansCPU.Predict(X)
+	if err := kmeansCPU.Fit(X); err != nil {
+		t.Fatal(err)
+	}
+
+	labelsCPU, err := kmeansCPU.Predict(X)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// ---------------- ONNX ----------------
+
+	kmeansONNX, err := New(
+		WithBackend(BackendGPU),
+		WithNClusters(8),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer kmeansONNX.Close()
+
+	err = kmeansONNX.LoadONNX(onnxModel)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	labelsONNX, err := kmeansONNX.PredictONNX(X)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// ---------------- inertia ----------------
+
 	inertiaGPU := computeInertia(X, labelsGPU)
 	inertiaCPU := computeInertia(X, labelsCPU)
+	inertiaONNX := computeInertia(X, labelsONNX)
 
 	// ---------------- logs ----------------
-	t.Logf("Samples        : %d", len(X))
-	t.Logf("GPU Inertia    : %.6f", inertiaGPU)
-	t.Logf("CPU Inertia    : %.6f", inertiaCPU)
 
-	// sanity
-	if inertiaCPU == 0 || inertiaGPU == 0 {
-		t.Fatalf("invalid inertia")
+	t.Logf("Samples         : %d", len(X))
+	t.Logf("GPU Inertia     : %.6f", inertiaGPU)
+	t.Logf("CPU Inertia     : %.6f", inertiaCPU)
+	t.Logf("ONNX Inertia    : %.6f", inertiaONNX)
+
+	// ---------------- sanity ----------------
+
+	if inertiaGPU == 0 {
+		t.Fatalf("invalid GPU inertia")
+	}
+
+	if inertiaCPU == 0 {
+		t.Fatalf("invalid CPU inertia")
+	}
+
+	if inertiaONNX == 0 {
+		t.Fatalf("invalid ONNX inertia")
+	}
+
+	if len(labelsGPU) != len(labelsCPU) {
+		t.Fatalf(
+			"label length mismatch GPU=%d CPU=%d",
+			len(labelsGPU),
+			len(labelsCPU),
+		)
+	}
+
+	if len(labelsGPU) != len(labelsONNX) {
+		t.Fatalf(
+			"label length mismatch GPU=%d ONNX=%d",
+			len(labelsGPU),
+			len(labelsONNX),
+		)
 	}
 }
 
@@ -75,8 +149,8 @@ func computeInertia(X [][]float32, labels []int) float64 {
 		centroids[i] = make([]float64, nFeatures)
 	}
 
-	// compute centroids
 	for i := 0; i < nSamples; i++ {
+
 		c := labels[i]
 		counts[c]++
 
@@ -86,22 +160,26 @@ func computeInertia(X [][]float32, labels []int) float64 {
 	}
 
 	for c := 0; c < k; c++ {
+
 		if counts[c] == 0 {
 			continue
 		}
+
 		for j := 0; j < nFeatures; j++ {
 			centroids[c][j] /= float64(counts[c])
 		}
 	}
 
-	// compute inertia
 	var inertia float64
 
 	for i := 0; i < nSamples; i++ {
+
 		c := labels[i]
 
 		var dist float64
+
 		for j := 0; j < nFeatures; j++ {
+
 			diff := float64(X[i][j]) - centroids[c][j]
 			dist += diff * diff
 		}
@@ -113,11 +191,14 @@ func computeInertia(X [][]float32, labels []int) float64 {
 }
 
 func maxLabel(labels []int) int {
+
 	m := labels[0]
+
 	for _, v := range labels {
 		if v > m {
 			m = v
 		}
 	}
+
 	return m
 }

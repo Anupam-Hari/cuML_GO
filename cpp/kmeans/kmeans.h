@@ -27,6 +27,19 @@ int kmeans_predict(
     int* labels
 );
 
+int kmeans_load_onnx(
+    KMeansHandle* handle,
+    const char* filename
+);
+
+int kmeans_predict_onnx(
+    KMeansHandle* handle,
+    const float* X,
+    int rows,
+    int cols,
+    int* predictions
+);
+
 void kmeans_destroy(
     KMeansHandle* handle
 );

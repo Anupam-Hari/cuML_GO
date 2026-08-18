@@ -18,6 +18,7 @@ func TrainKNN(
 ) (
 	knnGPU *knn.KNN,
 	knnCPU *knn.KNN,
+	knnONNX *knn.KNN,
 	err error,
 ) {
 
@@ -26,12 +27,12 @@ func TrainKNN(
 		knn.WithBackend(knn.BackendGPU),
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	if err := knnGPU.Fit(X, y); err != nil {
 		knnGPU.Close()
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	knnCPU, err = knn.New(
@@ -39,17 +40,37 @@ func TrainKNN(
 		knn.WithBackend(knn.BackendCPU),
 	)
 	if err != nil {
-		knnGPU.Close()
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	if err := knnCPU.Fit(X, y); err != nil {
-		knnGPU.Close()
 		knnCPU.Close()
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return knnGPU, knnCPU, nil
+	knnONNX, err = knn.New(
+		knn.WithK(5),
+		knn.WithBackend(knn.BackendGPU),
+	)
+	if err != nil {
+		knnGPU.Close()
+		knnCPU.Close()
+
+		return nil, nil, nil, err
+	}
+
+	err = knnONNX.LoadONNX(
+		"exported_models/knn_100000_n_neighbors-5_repeat-1.onnx",
+	)
+	if err != nil {
+		knnGPU.Close()
+		knnCPU.Close()
+		knnONNX.Close()
+
+		return nil, nil, nil, err
+	}
+
+	return knnGPU, knnCPU, knnONNX, nil
 }
 
 func TrainKMeans(
@@ -57,6 +78,7 @@ func TrainKMeans(
 ) (
 	kmeansGPU *kmeans.KMeans,
 	kmeansCPU *kmeans.KMeans,
+	kmeansONNX *kmeans.KMeans,
 	err error,
 ) {
 
@@ -65,30 +87,51 @@ func TrainKMeans(
 		kmeans.WithNClusters(8),
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	if err := kmeansGPU.Fit(X); err != nil {
 		kmeansGPU.Close()
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	kmeansCPU, err = kmeans.New(
 		kmeans.WithBackend(kmeans.BackendCPU),
 		kmeans.WithNClusters(8),
 	)
+
+	if err != nil { 
+		kmeansGPU.Close() 
+		return nil, nil, nil, err 
+	} 
+	if err := kmeansCPU.Fit(X); err != nil { 
+		kmeansGPU.Close() 
+		kmeansCPU.Close() 
+		return nil, nil, nil, err 
+	}
+	kmeansONNX, err = kmeans.New(
+		kmeans.WithBackend(kmeans.BackendGPU),
+		kmeans.WithNClusters(8),
+	)
 	if err != nil {
 		kmeansGPU.Close()
-		return nil, nil, err
+		kmeansCPU.Close()
+
+		return nil, nil, nil, err
 	}
 
-	if err := kmeansCPU.Fit(X); err != nil {
+	err = kmeansONNX.LoadONNX(
+		"exported_models/kmeans_100000_n_clusters-8_repeat-1.onnx",
+	)
+	if err != nil {
 		kmeansGPU.Close()
 		kmeansCPU.Close()
-		return nil, nil, err
+		kmeansONNX.Close()
+
+		return nil, nil, nil, err
 	}
 
-	return kmeansGPU, kmeansCPU, nil
+	return kmeansGPU, kmeansCPU, kmeansONNX, nil
 }
 
 func main() {
@@ -100,9 +143,9 @@ func main() {
 
 		PredictRows: 1000,
 
-		Repeats: 10,
+		Repeats: 1,
 
-		WarmupRuns: 2,
+		WarmupRuns: 1,
 
 		CPUCores: 16,
 
@@ -144,6 +187,22 @@ func main() {
 	}
 	defer rf.Close()
 
+	rfONNX, err := randomforest.New(
+		randomforest.WithEstimators(100),
+		randomforest.WithMaxDepth(10),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rfONNX.Close()
+
+	err = rfONNX.LoadONNX(
+		"exported_models/random_forest_100000_n_estimators-100_max_depth-10_repeat-1.onnx",
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	fmt.Println("RF model imported")
 
 	if config.CPUCores > 0 {
@@ -176,6 +235,7 @@ func main() {
 
 		benchmarkResults, err := BenchmarkRFInference(
 			rf,
+			rfONNX,
 			X_,
 			y_,
 			cfg,
@@ -190,62 +250,64 @@ func main() {
 	fmt.Println("All RF benchmarks complete")
 
 	XTrain := X[:trainingRows]
-	yTrain := y[:trainingRows]
+	// yTrain := y[:trainingRows]
 
-	fmt.Println("Starting KNN training...")
+	// fmt.Println("Starting KNN training...")
 
-	knnGPU, knnCPU, err := TrainKNN(
-		XTrain,
-		yTrain,
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
+	// knnGPU, knnCPU, knnONNX, err := TrainKNN(
+	// 	XTrain,
+	// 	yTrain,
+	// )
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
-	defer knnGPU.Close()
-	defer knnCPU.Close()
+	// defer knnGPU.Close()
+	// defer knnCPU.Close()
+	// defer knnONNX.Close()
 
-	fmt.Println("KNN training complete")
+	// fmt.Println("KNN training complete")
 
-	for _, rows := range predictRows {
+	// for _, rows := range predictRows {
 
-		fmt.Printf("KNN benchmark: %d rows\n", rows)
+	// 	fmt.Printf("KNN benchmark: %d rows\n", rows)
 
-		if rows > len(X) {
-			log.Fatalf(
-				"predict rows (%d) exceeds dataset size (%d)",
-				rows,
-				len(X),
-			)
-		}
+	// 	if rows > len(X) {
+	// 		log.Fatalf(
+	// 			"predict rows (%d) exceeds dataset size (%d)",
+	// 			rows,
+	// 			len(X),
+	// 		)
+	// 	}
 
-		start := len(X) - rows
+	// 	start := len(X) - rows
 
-		X_ := X[start:]
-		y_ := y[start:]
+	// 	X_ := X[start:]
+	// 	y_ := y[start:]
 
-		cfg := config
-		cfg.PredictRows = rows
+	// 	cfg := config
+	// 	cfg.PredictRows = rows
 
-		benchmarkResults, err := BenchmarkKNNInference(
-			knnGPU,
-			knnCPU,
-			X_,
-			y_,
-			cfg,
-		)
-		if err != nil {
-			log.Fatal(err)
-		}
+	// 	benchmarkResults, err := BenchmarkKNNInference(
+	// 		knnGPU,
+	// 		knnCPU,
+	// 		knnONNX,
+	// 		X_,
+	// 		y_,
+	// 		cfg,
+	// 	)
+	// 	if err != nil {
+	// 		log.Fatal(err)
+	// 	}
 
-		results = append(results, benchmarkResults...)
-		fmt.Printf("KNN benchmark complete: %d rows\n", rows)
-	}
-	fmt.Printf("All KNN benchmark completed\n")
+	// 	results = append(results, benchmarkResults...)
+	// 	fmt.Printf("KNN benchmark complete: %d rows\n", rows)
+	// }
+	// fmt.Printf("All KNN benchmark completed\n")
 
 	fmt.Println("Starting KMeans training...")
 
-	kmeansGPU, kmeansCPU, err := TrainKMeans(
+	kmeansGPU, kmeansCPU, kmeansONNX, err := TrainKMeans(
 		XTrain,
 	)
 	if err != nil {
@@ -254,6 +316,7 @@ func main() {
 
 	defer kmeansGPU.Close()
 	defer kmeansCPU.Close()
+	defer kmeansONNX.Close()
 
 	fmt.Println("KMeans training complete")
 
@@ -278,6 +341,7 @@ func main() {
 		benchmarkResults, err := BenchmarkKMeansInference(
 			kmeansGPU,
 			kmeansCPU,
+			kmeansONNX,
 			X_,
 			cfg,
 		)

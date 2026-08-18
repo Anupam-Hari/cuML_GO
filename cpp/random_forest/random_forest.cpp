@@ -15,6 +15,7 @@
 #include <memory>
 #include <fstream>
 #include <string>
+#include <onnxruntime_cxx_api.h>
 
 struct RFHandle {
     std::shared_ptr<rmm::cuda_stream_pool> stream_pool;
@@ -24,6 +25,9 @@ struct RFHandle {
     TreeliteModelHandle tl_model = nullptr;
     std::optional<nvforest::forest_model> cpu_forest;
     std::optional<nvforest::forest_model> gpu_forest;
+
+    Ort::Env env{ORT_LOGGING_LEVEL_WARNING, "rf"};
+    std::unique_ptr<Ort::Session> onnx_session;
     int n_classes = 0;
 };
 
@@ -73,6 +77,33 @@ void rf_set_cpu_threads(int threads)
 int rf_get_cpu_threads()
 {
     return omp_get_max_threads();
+}
+
+int random_forest_load_onnx(
+    RFHandle* handle,
+    const char* filename
+) {
+    try {
+
+        Ort::SessionOptions options;
+
+        options.SetIntraOpNumThreads(1);
+
+        handle->onnx_session =
+            std::make_unique<Ort::Session>(
+                handle->env,
+                filename,
+                options
+            );
+
+        return 0;
+
+    } catch (const Ort::Exception& e) {
+
+        std::cerr << e.what() << std::endl;
+
+        return -1;
+    }
 }
 
 int rf_fit(
@@ -332,6 +363,79 @@ int rf_save(
     meta.close();
 
     return 0;
+}
+
+int random_forest_predict_onnx(
+    RFHandle* handle,
+    const float* X,
+    int rows,
+    int cols,
+    int* predictions
+)
+{
+    try {
+
+        if (!handle->onnx_session) {
+            return -1;
+        }
+
+        std::vector<int64_t> input_shape = {
+            rows,
+            cols
+        };
+
+        Ort::MemoryInfo memory_info =
+            Ort::MemoryInfo::CreateCpu(
+                OrtArenaAllocator,
+                OrtMemTypeDefault
+            );
+
+        Ort::Value input_tensor =
+            Ort::Value::CreateTensor<float>(
+                memory_info,
+                const_cast<float*>(X),
+                static_cast<size_t>(rows) * cols,
+                input_shape.data(),
+                input_shape.size()
+            );
+
+        const char* input_names[] = {
+            "X"
+        };
+
+        const char* output_names[] = {
+            "output_label"
+        };
+
+        auto outputs =
+            handle->onnx_session->Run(
+                Ort::RunOptions{nullptr},
+                input_names,
+                &input_tensor,
+                1,
+                output_names,
+                1
+            );
+
+        int64_t* labels =
+            outputs[0].GetTensorMutableData<int64_t>();
+
+        for (int i = 0; i < rows; ++i) {
+            predictions[i] =
+                static_cast<int>(labels[i]);
+        }
+
+        return 0;
+    }
+    catch (const Ort::Exception& e) {
+
+        std::cerr
+            << "ONNX prediction failed: "
+            << e.what()
+            << std::endl;
+
+        return -1;
+    }
 }
 
 RFHandle* rf_load(

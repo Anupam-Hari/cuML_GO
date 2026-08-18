@@ -23,6 +23,19 @@ int knn_predict(
     int cols,
     int* predictions);
 
+int knn_load_onnx(
+    KNNHandle* handle,
+    const char* filename
+);
+
+int knn_predict_onnx(
+    KNNHandle* handle,
+    const float* X,
+    int rows,
+    int cols,
+    int* predictions
+);
+
 void knn_destroy(
     KNNHandle* handle);
 

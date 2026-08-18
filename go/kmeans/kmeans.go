@@ -1,7 +1,7 @@
 package kmeans
 
 import (
-	//"fmt"
+	"fmt"
 	"unsafe"
 
 	"github.com/Anupam-Hari/cuml-go/go/internal/capi"
@@ -11,6 +11,7 @@ import (
 type KMeans struct {
 	gpu *capi.KMeansHandle
 	cpu *capi.KMeansCPUHandle
+	// onnx *capi.KMeansHandle
 
 	nClusters int
 	maxIters  int
@@ -141,6 +142,52 @@ func (kmeans *KMeans) Predict(X [][]float32) ([]int, error) {
 	)
 
 	return matrix.FromCInt32(pred), nil
+}
+
+func (kmeans *KMeans) LoadONNX(
+	filename string,
+) error {
+
+	if kmeans.gpu == nil {
+		return fmt.Errorf("kmeans is closed")
+	}
+
+	return capi.KMeansLoadONNX(
+		kmeans.gpu,
+		filename,
+	)
+}
+
+func (kmeans *KMeans) PredictONNX(
+	X [][]float32,
+) ([]int, error) {
+
+	if kmeans.gpu == nil {
+		return nil,
+			fmt.Errorf("kmeans is closed")
+	}
+
+	dense, err := matrix.From2D(X)
+
+	if err != nil {
+		return nil, err
+	}
+
+	predictions, err :=
+		capi.KMeansPredictONNX(
+			kmeans.gpu,
+			dense.Data,
+			dense.Rows,
+			dense.Cols,
+		)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return matrix.FromCInt32(
+		predictions,
+	), nil
 }
 
 func (kmeans *KMeans) Close() {

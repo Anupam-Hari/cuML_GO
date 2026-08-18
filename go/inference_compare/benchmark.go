@@ -193,6 +193,7 @@ func comparePredictions(
 
 func BenchmarkRFInference(
 	rf *randomforest.RandomForest,
+	rfONNX *randomforest.RandomForest,
 	X [][]float32,
 	y []int,
 	config Config,
@@ -205,10 +206,10 @@ func BenchmarkRFInference(
 	//-------------------------------------------------
 
 	gpuPred,
-	gpuTime,
-	gpuThroughput,
-	gpuCPUAvg,
-	err := benchmarkBackend(
+		gpuTime,
+		gpuThroughput,
+		gpuCPUAvg,
+		err := benchmarkBackend(
 		func() ([]int, error) {
 			return rf.Predict(
 				X,
@@ -249,11 +250,46 @@ func BenchmarkRFInference(
 	}
 
 	//-------------------------------------------------
-	// Verify predictions
+	// ONNX
 	//-------------------------------------------------
 
-	if err := comparePredictions(cpuPred, gpuPred); err != nil {
+	onnxPred,
+		onnxTime,
+		onnxThroughput,
+		onnxCPUAvg,
+		err := benchmarkBackend(
+		func() ([]int, error) {
+			return rfONNX.PredictONNX(X)
+		},
+		len(X),
+		config.Repeats,
+		config.WarmupRuns,
+	)
+
+	if err != nil {
 		return nil, err
+	}
+
+	//-------------------------------------------------
+	// Verify prediction lengths
+	//-------------------------------------------------
+
+	if len(cpuPred) != len(gpuPred) {
+		return nil,
+			fmt.Errorf(
+				"prediction length mismatch CPU=%d GPU=%d",
+				len(cpuPred),
+				len(gpuPred),
+			)
+	}
+
+	if len(cpuPred) != len(onnxPred) {
+		return nil,
+			fmt.Errorf(
+				"prediction length mismatch CPU=%d ONNX=%d",
+				len(cpuPred),
+				len(onnxPred),
+			)
 	}
 
 	//-------------------------------------------------
@@ -280,9 +316,20 @@ func BenchmarkRFInference(
 		cpuCPUAvg,
 	)
 
+	onnxResult := createBenchmarkResult(
+		modelName,
+		"onnx",
+		config.PredictRows,
+		computeAccuracy(onnxPred, y),
+		onnxTime,
+		onnxThroughput,
+		onnxCPUAvg,
+	)
+
 	return []BenchmarkResult{
 		gpuResult,
 		cpuResult,
+		onnxResult,
 	}, nil
 }
 
@@ -293,6 +340,7 @@ func BenchmarkRFInference(
 func BenchmarkKNNInference(
 	gpuModel *knn.KNN,
 	cpuModel *knn.KNN,
+	onnxModel *knn.KNN,
 	X [][]float32,
 	y []int,
 	config Config,
@@ -300,7 +348,9 @@ func BenchmarkKNNInference(
 
 	const modelName = "KNN Inference"
 
-	fmt.Println("KNN: starting GPU benchmark")
+	//-------------------------------------------------
+	// GPU
+	//-------------------------------------------------
 
 	gpuPred,
 		gpuTime,
@@ -308,7 +358,6 @@ func BenchmarkKNNInference(
 		gpuCPUAvg,
 		err := benchmarkBackend(
 		func() ([]int, error) {
-			fmt.Println("KNN: GPU predict")
 			return gpuModel.Predict(X)
 		},
 		len(X),
@@ -320,9 +369,9 @@ func BenchmarkKNNInference(
 		return nil, err
 	}
 
-	fmt.Println("KNN: GPU benchmark complete")
-
-	fmt.Println("KNN: starting CPU benchmark")
+	//-------------------------------------------------
+	// CPU
+	//-------------------------------------------------
 
 	cpuPred,
 		cpuTime,
@@ -330,7 +379,6 @@ func BenchmarkKNNInference(
 		cpuCPUAvg,
 		err := benchmarkBackend(
 		func() ([]int, error) {
-			fmt.Println("KNN: CPU predict")
 			return cpuModel.Predict(X)
 		},
 		len(X),
@@ -342,11 +390,30 @@ func BenchmarkKNNInference(
 		return nil, err
 	}
 
-	fmt.Println("KNN: CPU benchmark complete")
+	//-------------------------------------------------
+	// ONNX
+	//-------------------------------------------------
 
-	if err := comparePredictions(cpuPred, gpuPred); err != nil {
+	onnxPred,
+		onnxTime,
+		onnxThroughput,
+		onnxCPUAvg,
+		err := benchmarkBackend(
+		func() ([]int, error) {
+			return onnxModel.PredictONNX(X)
+		},
+		len(X),
+		config.Repeats,
+		config.WarmupRuns,
+	)
+
+	if err != nil {
 		return nil, err
 	}
+
+	//-------------------------------------------------
+	// Results
+	//-------------------------------------------------
 
 	gpuResult := createBenchmarkResult(
 		modelName,
@@ -368,9 +435,20 @@ func BenchmarkKNNInference(
 		cpuCPUAvg,
 	)
 
+	onnxResult := createBenchmarkResult(
+		modelName,
+		"onnx",
+		config.PredictRows,
+		computeAccuracy(onnxPred, y),
+		onnxTime,
+		onnxThroughput,
+		onnxCPUAvg,
+	)
+
 	return []BenchmarkResult{
 		gpuResult,
 		cpuResult,
+		onnxResult,
 	}, nil
 }
 
@@ -381,6 +459,7 @@ func BenchmarkKNNInference(
 func BenchmarkKMeansInference(
 	gpuModel *kmeans.KMeans,
 	cpuModel *kmeans.KMeans,
+	onnxModel *kmeans.KMeans,
 	X [][]float32,
 	config Config,
 ) ([]BenchmarkResult, error) {
@@ -430,7 +509,28 @@ func BenchmarkKMeansInference(
 	}
 
 	//-------------------------------------------------
-	// Create results
+	// ONNX
+	//-------------------------------------------------
+
+	_,
+		onnxTime,
+		onnxThroughput,
+		onnxCPUAvg,
+		err := benchmarkBackend(
+		func() ([]int, error) {
+			return onnxModel.PredictONNX(X)
+		},
+		len(X),
+		config.Repeats,
+		config.WarmupRuns,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	//-------------------------------------------------
+	// Results
 	//-------------------------------------------------
 
 	gpuResult := createBenchmarkResult(
@@ -453,8 +553,19 @@ func BenchmarkKMeansInference(
 		cpuCPUAvg,
 	)
 
+	onnxResult := createBenchmarkResult(
+		modelName,
+		"onnx",
+		config.PredictRows,
+		0,
+		onnxTime,
+		onnxThroughput,
+		onnxCPUAvg,
+	)
+
 	return []BenchmarkResult{
 		gpuResult,
 		cpuResult,
+		onnxResult,
 	}, nil
 }

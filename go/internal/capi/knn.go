@@ -5,11 +5,13 @@ package capi
 #cgo LDFLAGS: -L${SRCDIR}/../../../build -lcumlgo
 
 #include "knn.h"
+#include <stdlib.h>
 */
 import "C"
 
 import (
 	"fmt"
+	"unsafe"
 )
 
 type KNNHandle struct {
@@ -75,6 +77,60 @@ func KNNPredict(
 
 	if status != 0 {
 		return nil, fmt.Errorf("knn_predict failed")
+	}
+
+	return predictions, nil
+}
+
+func KNNLoadONNX(
+	h *KNNHandle,
+	filename string,
+) error {
+
+
+	cname := C.CString(filename)
+	defer C.free(unsafe.Pointer(cname))
+
+	status := C.knn_load_onnx(
+		h.ptr,
+		cname,
+	)
+
+	if status != 0 {
+		return fmt.Errorf(
+			"knn_load_onnx failed",
+		)
+	}
+
+	return nil
+}
+
+func KNNPredictONNX(
+	h *KNNHandle,
+	data []float32,
+	rows int,
+	cols int,
+) ([]int32, error) {
+
+	predictions := make(
+		[]int32,
+		rows,
+	)
+
+	status := C.knn_predict_onnx(
+		h.ptr,
+		(*C.float)(&data[0]),
+		C.int(rows),
+		C.int(cols),
+		(*C.int)(&predictions[0]),
+	)
+
+	if status != 0 {
+
+		return nil,
+			fmt.Errorf(
+				"knn_predict_onnx failed",
+			)
 	}
 
 	return predictions, nil

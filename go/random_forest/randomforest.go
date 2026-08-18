@@ -173,6 +173,57 @@ func Load(filename string) (*RandomForest, error) {
 	}, nil
 }
 
+func (rf *RandomForest) LoadONNX(
+	filename string,
+) error {
+
+	if rf.handle == nil {
+		return fmt.Errorf(
+			"random forest is closed",
+		)
+	}
+
+	return capi.RandomForestLoadONNX(
+		rf.handle,
+		filename,
+	)
+}
+
+func (rf *RandomForest) PredictONNX(
+	X [][]float32,
+) ([]int, error) {
+
+	if rf.handle == nil {
+
+		return nil,
+			fmt.Errorf(
+				"random forest is closed",
+			)
+	}
+
+	dense, err := matrix.From2D(X)
+
+	if err != nil {
+		return nil, err
+	}
+
+	predictions, err :=
+		capi.RandomForestPredictONNX(
+			rf.handle,
+			dense.Data,
+			dense.Rows,
+			dense.Cols,
+		)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return matrix.FromCInt32(
+		predictions,
+	), nil
+}
+
 func SetCPUThreads(threads int) {
 	capi.SetCPUThreads(threads)
 }

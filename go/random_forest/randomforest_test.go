@@ -14,6 +14,8 @@ var maxRows = flag.Int(
 	"Maximum number of dataset rows",
 )
 
+const onnxModel = "../../exported_models/random_forest_100000_n_estimators-100_max_depth-10_repeat-1.onnx"
+
 func TestRandomForest_BackendComparison(t *testing.T) {
 
 	wd, _ := os.Getwd()
@@ -37,44 +39,104 @@ func TestRandomForest_BackendComparison(t *testing.T) {
 	}
 	defer rf.Close()
 
-	// Train once
 	if err := rf.Fit(X, y); err != nil {
 		t.Fatal(err)
 	}
 
 	// ---------------- GPU ----------------
-	predGPU, err := rf.Predict(X, BackendGPU)
+
+	predGPU, err := rf.Predict(
+		X,
+		BackendGPU,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	accGPU := computeAccuracy(predGPU, y)
+	accGPU := computeAccuracy(
+		predGPU,
+		y,
+	)
 
 	// ---------------- CPU ----------------
-	predCPU, err := rf.Predict(X, BackendCPU)
+
+	predCPU, err := rf.Predict(
+		X,
+		BackendCPU,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	accCPU := computeAccuracy(predCPU, y)
+	accCPU := computeAccuracy(
+		predCPU,
+		y,
+	)
 
-	// ---------------- Compare ----------------
-	t.Logf("Samples       : %d", len(y))
-	t.Logf("GPU Accuracy  : %.2f%%", accGPU*100)
-	t.Logf("CPU Accuracy  : %.2f%%", accCPU*100)
+	// ---------------- ONNX ----------------
 
-	if len(predCPU) != len(predGPU) {
-		t.Fatalf("prediction length mismatch CPU=%d GPU=%d",
-			len(predCPU), len(predGPU))
+	if err := rf.LoadONNX(onnxModel); err != nil {
+		t.Fatal(err)
+	}
+
+	predONNX, err := rf.PredictONNX(X)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	accONNX := computeAccuracy(
+		predONNX,
+		y,
+	)
+
+	// ---------------- Results ----------------
+
+	t.Logf("Samples        : %d", len(y))
+
+	t.Logf(
+		"GPU Accuracy   : %.2f%%",
+		accGPU*100,
+	)
+
+	t.Logf(
+		"CPU Accuracy   : %.2f%%",
+		accCPU*100,
+	)
+
+	t.Logf(
+		"ONNX Accuracy  : %.2f%%",
+		accONNX*100,
+	)
+
+	if len(predGPU) != len(predCPU) {
+		t.Fatalf(
+			"CPU/GPU prediction length mismatch: %d vs %d",
+			len(predCPU),
+			len(predGPU),
+		)
+	}
+
+	if len(predGPU) != len(predONNX) {
+		t.Fatalf(
+			"GPU/ONNX prediction length mismatch: %d vs %d",
+			len(predGPU),
+			len(predONNX),
+		)
 	}
 }
 
-func computeAccuracy(pred, y []int) float64 {
+func computeAccuracy(
+	pred []int,
+	y []int,
+) float64 {
+
 	correct := 0
+
 	for i := range pred {
 		if pred[i] == y[i] {
 			correct++
 		}
 	}
+
 	return float64(correct) / float64(len(y))
 }

@@ -110,6 +110,59 @@ func RandomForestPredict(
 	return predictions, nil
 }
 
+func RandomForestLoadONNX(
+	h *RandomForestHandle,
+	filename string,
+) error {
+
+	cname := C.CString(filename)
+	defer C.free(unsafe.Pointer(cname))
+
+	status := C.random_forest_load_onnx(
+		h.ptr,
+		cname,
+	)
+
+	if status != 0 {
+		return fmt.Errorf(
+			"random_forest_load_onnx failed",
+		)
+	}
+
+	return nil
+}
+
+func RandomForestPredictONNX(
+	h *RandomForestHandle,
+	data []float32,
+	rows int,
+	cols int,
+) ([]int32, error) {
+
+	predictions := make(
+		[]int32,
+		rows,
+	)
+
+	status := C.random_forest_predict_onnx(
+		h.ptr,
+		(*C.float)(&data[0]),
+		C.int(rows),
+		C.int(cols),
+		(*C.int)(&predictions[0]),
+	)
+
+	if status != 0 {
+
+		return nil,
+			fmt.Errorf(
+				"random_forest_predict_onnx failed",
+			)
+	}
+
+	return predictions, nil
+}
+
 func RandomForestSave(
 	h *RandomForestHandle,
 	filename string,

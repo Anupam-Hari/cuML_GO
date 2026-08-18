@@ -5,7 +5,6 @@ go 1.18
 require github.com/sjwhitworth/golearn v0.0.0-20221228163002-74ae077eafb2
 
 require (
-	github.com/gonum/blas v0.0.0-20181208220705-f22b278b28ac // indirect
 	github.com/google/go-cmp v0.4.0 // indirect
 	github.com/guptarohit/asciigraph v0.5.1 // indirect
 	github.com/mattn/go-runewidth v0.0.7 // indirect

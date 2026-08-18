@@ -8,6 +8,8 @@ import (
 	"github.com/Anupam-Hari/cuml-go/go/internal/dataset"
 )
 
+const onnxModel = "../../exported_models/knn_100000_n_neighbors-5_repeat-1.onnx"
+
 var maxRows = flag.Int(
 	"rows",
 	-1,
@@ -29,6 +31,7 @@ func TestKNN_BackendComparison(t *testing.T) {
 	}
 
 	// ---------------- GPU ----------------
+
 	knnGPU, err := New(
 		WithK(5),
 		WithBackend(BackendGPU),
@@ -50,6 +53,7 @@ func TestKNN_BackendComparison(t *testing.T) {
 	accGPU := computeAccuracy(predGPU, y)
 
 	// ---------------- CPU ----------------
+
 	knnCPU, err := New(
 		WithK(5),
 		WithBackend(BackendCPU),
@@ -70,23 +74,64 @@ func TestKNN_BackendComparison(t *testing.T) {
 
 	accCPU := computeAccuracy(predCPU, y)
 
-	// ---------------- Compare ----------------
-	t.Logf("Samples       : %d", len(y))
-	t.Logf("GPU Accuracy  : %.2f%%", accGPU*100)
-	t.Logf("CPU Accuracy  : %.2f%%", accCPU*100)
+	// ---------------- ONNX ----------------
 
-	// optional strict check
-	if len(predCPU) != len(predGPU) {
-		t.Fatalf("prediction length mismatch CPU=%d GPU=%d", len(predCPU), len(predGPU))
+	knnONNX, err := New(
+		WithK(5),
+		WithBackend(BackendGPU),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer knnONNX.Close()
+
+	err = knnONNX.LoadONNX(onnxModel)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	predONNX, err := knnONNX.PredictONNX(X)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	accONNX := computeAccuracy(predONNX, y)
+
+	// ---------------- logs ----------------
+
+	t.Logf("Samples        : %d", len(y))
+	t.Logf("GPU Accuracy   : %.2f%%", accGPU*100)
+	t.Logf("CPU Accuracy   : %.2f%%", accCPU*100)
+	t.Logf("ONNX Accuracy  : %.2f%%", accONNX*100)
+
+	// ---------------- sanity ----------------
+
+	if len(predGPU) != len(predCPU) {
+		t.Fatalf(
+			"prediction length mismatch GPU=%d CPU=%d",
+			len(predGPU),
+			len(predCPU),
+		)
+	}
+
+	if len(predGPU) != len(predONNX) {
+		t.Fatalf(
+			"prediction length mismatch GPU=%d ONNX=%d",
+			len(predGPU),
+			len(predONNX),
+		)
 	}
 }
 
 func computeAccuracy(pred, y []int) float64 {
+
 	correct := 0
+
 	for i := range pred {
 		if pred[i] == y[i] {
 			correct++
 		}
 	}
+
 	return float64(correct) / float64(len(y))
 }

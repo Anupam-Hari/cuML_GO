@@ -1,7 +1,7 @@
 package knn
 
 import (
-	//"fmt"
+	"fmt"
 	"unsafe"
 
 	"github.com/Anupam-Hari/cuml-go/go/internal/capi"
@@ -11,6 +11,7 @@ import (
 type KNN struct {
     gpu *capi.KNNHandle
     cpu *capi.KNNCPUHandle
+    // onnx *capi.KNNHandle
 
     k       int
     backend int
@@ -90,6 +91,10 @@ func (knn *KNN) Fit(X [][]float32, y []int) error {
         nClasses,
     )
 
+    if knn.cpu == nil {
+        return fmt.Errorf("KNNCPUCreate failed")
+    }
+
     return nil
 }
 
@@ -124,6 +129,52 @@ func (knn *KNN) Predict(X [][]float32) ([]int, error) {
     )
 
     return matrix.FromCInt32(pred), nil
+}
+
+func (knn *KNN) LoadONNX(
+	filename string,
+) error {
+
+	if knn.gpu == nil {
+		return fmt.Errorf("knn is closed")
+	}
+
+	return capi.KNNLoadONNX(
+		knn.gpu,
+		filename,
+	)
+}
+
+func (knn *KNN) PredictONNX(
+	X [][]float32,
+) ([]int, error) {
+
+	if knn.gpu == nil {
+		return nil,
+			fmt.Errorf("knn is closed")
+	}
+
+	dense, err := matrix.From2D(X)
+
+	if err != nil {
+		return nil, err
+	}
+
+	predictions, err :=
+		capi.KNNPredictONNX(
+			knn.gpu,
+			dense.Data,
+			dense.Rows,
+			dense.Cols,
+		)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return matrix.FromCInt32(
+		predictions,
+	), nil
 }
 
 func (knn *KNN) Close() {

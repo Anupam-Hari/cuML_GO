@@ -23,6 +23,7 @@ add_library(cumlgo SHARED
 target_include_directories(cumlgo PRIVATE
     ${CMAKE_SOURCE_DIR}/cpp
     /usr/include/x86_64-linux-gnu
+    /home/anupam/opt/onnxruntime-linux-x64-1.22.0/include
 )
 
 target_link_libraries(cumlgo PRIVATE
@@ -30,6 +31,7 @@ target_link_libraries(cumlgo PRIVATE
     cuml::cuml
     ${BLAS_LIBRARIES}
     OpenMP::OpenMP_CXX
+    /home/anupam/opt/onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so
 )
 
 add_executable(test_cuml
@@ -42,6 +44,7 @@ add_executable(test_cuml
 target_include_directories(test_cuml PRIVATE
     ${CMAKE_SOURCE_DIR}/cpp
     ${CMAKE_SOURCE_DIR}/benchmark
+    /home/anupam/opt/onnxruntime-linux-x64-1.22.0/include
 )
 
 target_link_libraries(test_cuml PRIVATE
