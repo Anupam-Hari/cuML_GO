@@ -1,31 +1,38 @@
 package randomforest
 
 import (
-	"github.com/Anupam-Hari/cuml-go/go/internal/matrix"
-	"github.com/Anupam-Hari/cuml-go/go/internal/capi"
-)
-
-import (
 	"fmt"
 	"unsafe"
-)
 
-const (
-	BackendCPU = capi.BackendCPU
-	BackendGPU = capi.BackendGPU
+	"github.com/Anupam-Hari/cuml-go/go/internal/capi"
+	"github.com/Anupam-Hari/cuml-go/go/internal/matrix"
 )
 
 type RandomForest struct {
-	handle *capi.RandomForestHandle
+	gpu *capi.RandomForestHandle
+	cpu *capi.RFCPUHandle
 
 	nEstimators int
 	maxDepth    int
 	maxFeatures float32
 	maxLeaves   int
 	maxSamples  float32
+
+	backend int
 }
 
 type Option func(*RandomForest)
+
+const (
+	BackendCPU = 0
+	BackendGPU = 1
+)
+
+func WithBackend(b int) Option {
+	return func(rf *RandomForest) {
+		rf.backend = b
+	}
+}
 
 func WithEstimators(n int) Option {
 	return func(rf *RandomForest) {
@@ -64,31 +71,60 @@ func New(opts ...Option) (*RandomForest, error) {
 		maxFeatures: 1.0,
 		maxLeaves:   -1,
 		maxSamples:  1.0,
+		backend:     BackendGPU,
 	}
 
 	for _, opt := range opts {
 		opt(rf)
 	}
 
-	handle, err := capi.RandomForestCreate(
-		rf.nEstimators,
-		rf.maxDepth,
-		rf.maxFeatures,
-		rf.maxLeaves,
-		rf.maxSamples,
-	)
-	if err != nil {
-		return nil, err
-	}
+	switch rf.backend {
 
-	rf.handle = handle
+	case BackendGPU:
+		handle, err := capi.RandomForestCreate(
+			rf.nEstimators,
+			rf.maxDepth,
+			rf.maxFeatures,
+			rf.maxLeaves,
+			rf.maxSamples,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		rf.gpu = handle
+
+	case BackendCPU:
+		handle, err := capi.RFCPUCreate(
+			rf.nEstimators,
+			rf.maxDepth,
+			rf.maxFeatures,
+			rf.maxLeaves,
+			rf.maxSamples,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		rf.cpu = handle
+
+	default:
+		return nil, fmt.Errorf(
+			"invalid random forest backend: %d",
+			rf.backend,
+		)
+	}
 
 	return rf, nil
 }
 
-func (rf *RandomForest) Fit(X [][]float32, y []int) error {
-	if rf.handle == nil {
-		return fmt.Errorf("random forest is closed")
+func (rf *RandomForest) Fit(
+	X [][]float32,
+	y []int,
+) error {
+
+	if rf == nil {
+		return fmt.Errorf("random forest is nil")
 	}
 
 	dense, err := matrix.From2D(X)
@@ -97,7 +133,9 @@ func (rf *RandomForest) Fit(X [][]float32, y []int) error {
 	}
 
 	if len(y) != dense.Rows {
-		return fmt.Errorf("number of labels does not match number of rows")
+		return fmt.Errorf(
+			"number of labels does not match number of rows",
+		)
 	}
 
 	nClasses, err := matrix.NumClasses(y)
@@ -107,19 +145,50 @@ func (rf *RandomForest) Fit(X [][]float32, y []int) error {
 
 	labels := matrix.ToCInt(y)
 
-	return capi.RandomForestFit(
-   	 rf.handle,
-   	 dense.Data,
-   	 dense.Rows,
-   	 dense.Cols,
-   	 labels,
-   	 nClasses,
-	)
+	switch rf.backend {
+
+	case BackendGPU:
+		if rf.gpu == nil {
+			return fmt.Errorf("random forest GPU is closed")
+		}
+
+		return capi.RandomForestFit(
+			rf.gpu,
+			dense.Data,
+			dense.Rows,
+			dense.Cols,
+			labels,
+			nClasses,
+		)
+
+	case BackendCPU:
+		if rf.cpu == nil {
+			return fmt.Errorf("random forest CPU is closed")
+		}
+
+		return capi.RFCPUFit(
+			rf.cpu,
+			dense.Data,
+			dense.Rows,
+			dense.Cols,
+			labels,
+			nClasses,
+		)
+
+	default:
+		return fmt.Errorf(
+			"invalid random forest backend: %d",
+			rf.backend,
+		)
+	}
 }
 
-func (rf *RandomForest) Predict(X [][]float32, backend int) ([]int, error) {
-	if rf.handle == nil {
-		return nil, fmt.Errorf("random forest is closed")
+func (rf *RandomForest) Predict(
+	X [][]float32,
+) ([]int, error) {
+
+	if rf == nil {
+		return nil, fmt.Errorf("random forest is nil")
 	}
 
 	dense, err := matrix.From2D(X)
@@ -127,36 +196,86 @@ func (rf *RandomForest) Predict(X [][]float32, backend int) ([]int, error) {
 		return nil, err
 	}
 
-	predictions, err := capi.RandomForestPredict(
-		rf.handle,
-		dense.Data,
-		dense.Rows,
-		dense.Cols,
-		backend,
-	)
-	if err != nil {
-		return nil, err
+	switch rf.backend {
+
+	case BackendGPU:
+		if rf.gpu == nil {
+			return nil, fmt.Errorf("random forest GPU is closed")
+		}
+
+		predictions, err := capi.RandomForestPredict(
+			rf.gpu,
+			dense.Data,
+			dense.Rows,
+			dense.Cols,
+			BackendGPU,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		return matrix.FromCInt32(predictions), nil
+
+	case BackendCPU:
+		if rf.cpu == nil {
+			return nil, fmt.Errorf("random forest CPU is closed")
+		}
+
+		predictions, err := capi.RFCPUPredict(
+			rf.cpu,
+			dense.Data,
+			dense.Rows,
+			dense.Cols,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		return matrix.FromCInt32(predictions), nil
+
+	default:
+		return nil, fmt.Errorf(
+			"invalid random forest backend: %d",
+			rf.backend,
+		)
 	}
-
-	return matrix.FromCInt32(predictions), nil
-
-
 }
 
 func (rf *RandomForest) Close() {
-	if rf.handle != nil {
-		capi.RandomForestDestroy(rf.handle)
-		rf.handle = nil
+
+	if rf == nil {
+		return
+	}
+
+	if rf.gpu != nil {
+		capi.RandomForestDestroy(rf.gpu)
+		rf.gpu = nil
+	}
+
+	if rf.cpu != nil {
+		capi.RFCPUFree(rf.cpu)
+		rf.cpu = nil
 	}
 }
 
 func (rf *RandomForest) Save(filename string) error {
-	if rf.handle == nil {
-		return fmt.Errorf("random forest is closed")
+
+	if rf == nil {
+		return fmt.Errorf("random forest is nil")
+	}
+
+	if rf.backend != BackendGPU {
+		return fmt.Errorf(
+			"Save is only supported for the GPU backend",
+		)
+	}
+
+	if rf.gpu == nil {
+		return fmt.Errorf("random forest GPU is closed")
 	}
 
 	return capi.RandomForestSave(
-		rf.handle,
+		rf.gpu,
 		filename,
 	)
 }
@@ -169,59 +288,9 @@ func Load(filename string) (*RandomForest, error) {
 	}
 
 	return &RandomForest{
-		handle: handle,
+		gpu:     handle,
+		backend: BackendGPU,
 	}, nil
-}
-
-func (rf *RandomForest) LoadONNX(
-	filename string,
-) error {
-
-	if rf.handle == nil {
-		return fmt.Errorf(
-			"random forest is closed",
-		)
-	}
-
-	return capi.RandomForestLoadONNX(
-		rf.handle,
-		filename,
-	)
-}
-
-func (rf *RandomForest) PredictONNX(
-	X [][]float32,
-) ([]int, error) {
-
-	if rf.handle == nil {
-
-		return nil,
-			fmt.Errorf(
-				"random forest is closed",
-			)
-	}
-
-	dense, err := matrix.From2D(X)
-
-	if err != nil {
-		return nil, err
-	}
-
-	predictions, err :=
-		capi.RandomForestPredictONNX(
-			rf.handle,
-			dense.Data,
-			dense.Rows,
-			dense.Cols,
-		)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return matrix.FromCInt32(
-		predictions,
-	), nil
 }
 
 func SetCPUThreads(threads int) {
@@ -234,5 +303,20 @@ func GetCPUThreads() int {
 
 // Prevent accidental copying of a live model.
 func (rf *RandomForest) Handle() unsafe.Pointer {
-	return unsafe.Pointer(rf.handle)
+
+	if rf == nil {
+		return nil
+	}
+
+	switch rf.backend {
+
+	case BackendGPU:
+		return unsafe.Pointer(rf.gpu)
+
+	case BackendCPU:
+		return unsafe.Pointer(rf.cpu)
+
+	default:
+		return nil
+	}
 }

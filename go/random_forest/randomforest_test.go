@@ -15,8 +15,6 @@ var maxRows = flag.Int(
 	"Maximum number of dataset rows",
 )
 
-const onnxModel = "../../exported_models/random_forest_100000_n_estimators-100_max_depth-10_repeat-1.onnx"
-
 func TestRandomForest_BackendComparison(t *testing.T) {
 
 	wd, _ := os.Getwd()
@@ -31,110 +29,140 @@ func TestRandomForest_BackendComparison(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rf, err := New(
-		WithEstimators(100),
-		WithMaxDepth(16),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer rf.Close()
-
-	if err := rf.Fit(X, y); err != nil {
-		t.Fatal(err)
-	}
-
 	// ---------------- GPU ----------------
 
-	start := time.Now()
-
-	predGPU, err := rf.Predict(
-		X,
-		BackendGPU,
+	rfGPU, err := New(
+		WithEstimators(100),
+		WithMaxDepth(16),
+		WithMaxFeatures(1.0),
+		WithMaxLeaves(-1),
+		WithMaxSamples(1.0),
+		WithBackend(BackendGPU),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer rfGPU.Close()
 
-	gpuDuration := time.Since(start)
+	gpuTrainStart := time.Now()
 
-	accGPU := computeAccuracy(
-		predGPU,
-		y,
-	)
+	if err := rfGPU.Fit(X, y); err != nil {
+		t.Fatal(err)
+	}
+
+	gpuTrainTime := time.Since(gpuTrainStart)
+
+	gpuPredictStart := time.Now()
+
+	predGPU, err := rfGPU.Predict(X)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gpuPredictTime := time.Since(gpuPredictStart)
+
+	accGPU := computeAccuracy(predGPU, y)
 
 	// ---------------- CPU ----------------
 
-	start = time.Now()
-
-	predCPU, err := rf.Predict(
-		X,
-		BackendCPU,
+	rfCPU, err := New(
+		WithEstimators(100),
+		WithMaxDepth(16),
+		WithMaxFeatures(1.0),
+		WithMaxLeaves(-1),
+		WithMaxSamples(1.0),
+		WithBackend(BackendCPU),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer rfCPU.Close()
 
-	cpuDuration := time.Since(start)
+	cpuTrainStart := time.Now()
 
-	accCPU := computeAccuracy(
-		predCPU,
-		y,
-	)
-
-	// ---------------- ONNX ----------------
-
-	if err := rf.LoadONNX(onnxModel); err != nil {
+	if err := rfCPU.Fit(X, y); err != nil {
 		t.Fatal(err)
 	}
 
-	start = time.Now()
+	cpuTrainTime := time.Since(cpuTrainStart)
 
-	predONNX, err := rf.PredictONNX(X)
+	cpuPredictStart := time.Now()
+
+	predCPU, err := rfCPU.Predict(X)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	onnxDuration := time.Since(start)
+	cpuPredictTime := time.Since(cpuPredictStart)
 
-	accONNX := computeAccuracy(
-		predONNX,
-		y,
+	accCPU := computeAccuracy(predCPU, y)
+
+	// ---------------- logs ----------------
+
+	t.Logf("Samples         : %d", len(y))
+
+	t.Logf(
+		"GPU Train Time  : %v",
+		gpuTrainTime,
 	)
 
-	// ---------------- Results ----------------
+	t.Logf(
+		"GPU Predict Time: %v",
+		gpuPredictTime,
+	)
 
-	t.Logf("Samples        : %d", len(y))
+	t.Logf(
+		"GPU Accuracy    : %.2f%%",
+		accGPU*100,
+	)
 
+	t.Logf(
+		"CPU Train Time  : %v",
+		cpuTrainTime,
+	)
 
-	t.Logf("GPU Time       : %v", gpuDuration)
-	t.Logf("CPU Time       : %v", cpuDuration)
-	t.Logf("ONNX Time      : %v", onnxDuration)
+	t.Logf(
+		"CPU Predict Time: %v",
+		cpuPredictTime,
+	)
 
-	t.Logf("GPU Accuracy   : %.2f%%", accGPU*100)
-	t.Logf("CPU Accuracy   : %.2f%%", accCPU*100)
-	t.Logf("ONNX Accuracy  : %.2f%%", accONNX*100)
+	t.Logf(
+		"CPU Accuracy    : %.2f%%",
+		accCPU*100,
+	)
+
+	// ---------------- sanity ----------------
+
 	if len(predGPU) != len(predCPU) {
 		t.Fatalf(
-			"CPU/GPU prediction length mismatch: %d vs %d",
-			len(predCPU),
+			"prediction length mismatch GPU=%d CPU=%d",
 			len(predGPU),
+			len(predCPU),
 		)
 	}
 
-	if len(predGPU) != len(predONNX) {
+	if len(predGPU) != len(y) {
 		t.Fatalf(
-			"GPU/ONNX prediction length mismatch: %d vs %d",
+			"GPU prediction length mismatch predictions=%d labels=%d",
 			len(predGPU),
-			len(predONNX),
+			len(y),
+		)
+	}
+
+	if len(predCPU) != len(y) {
+		t.Fatalf(
+			"CPU prediction length mismatch predictions=%d labels=%d",
+			len(predCPU),
+			len(y),
 		)
 	}
 }
 
-func computeAccuracy(
-	pred []int,
-	y []int,
-) float64 {
+func computeAccuracy(pred, y []int) float64 {
+
+	if len(y) == 0 {
+		return 0
+	}
 
 	correct := 0
 

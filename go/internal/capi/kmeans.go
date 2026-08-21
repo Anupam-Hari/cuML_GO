@@ -11,7 +11,6 @@ import "C"
 
 import (
 	"fmt"
-	"unsafe"
 )
 
 type KMeansHandle struct {
@@ -79,59 +78,6 @@ func KMeansPredict(
 
 	if status != 0 {
 		return nil, fmt.Errorf("kmeans_predict failed")
-	}
-
-	return predictions, nil
-}
-
-func KMeansLoadONNX(
-	h *KMeansHandle,
-	filename string,
-) error {
-
-	cname := C.CString(filename)
-	defer C.free(unsafe.Pointer(cname))
-
-	status := C.kmeans_load_onnx(
-		h.ptr,
-		cname,
-	)
-
-	if status != 0 {
-		return fmt.Errorf(
-			"kmeans_load_onnx failed",
-		)
-	}
-
-	return nil
-}
-
-func KMeansPredictONNX(
-	h *KMeansHandle,
-	data []float32,
-	rows int,
-	cols int,
-) ([]int32, error) {
-
-	predictions := make(
-		[]int32,
-		rows,
-	)
-
-	status := C.kmeans_predict_onnx(
-		h.ptr,
-		(*C.float)(&data[0]),
-		C.int(rows),
-		C.int(cols),
-		(*C.int)(&predictions[0]),
-	)
-
-	if status != 0 {
-
-		return nil,
-			fmt.Errorf(
-				"kmeans_predict_onnx failed",
-			)
 	}
 
 	return predictions, nil

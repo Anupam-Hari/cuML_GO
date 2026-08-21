@@ -4,7 +4,6 @@
 
 #include <cuml/neighbors/knn.hpp>
 
-#include <onnxruntime_cxx_api.h>
 #include <raft/core/handle.hpp>
 #include <rmm/cuda_stream_pool.hpp>
 
@@ -34,11 +33,6 @@ struct KNNHandle {
           d_y(nullptr)
     {
     }
-    Ort::Env env{
-        ORT_LOGGING_LEVEL_WARNING,
-        "knn"
-    };
-    std::unique_ptr<Ort::Session> session;
 };
 
 KNNHandle* knn_create(int k)
@@ -188,100 +182,6 @@ int knn_predict(
         cuda_utils::Free(d_indices);
         cuda_utils::Free(d_distances);
         cuda_utils::Free(d_predictions);
-
-        return -1;
-    }
-}
-
-int knn_load_onnx(
-    KNNHandle* handle,
-    const char* filename
-)
-{
-    try {
-
-        Ort::SessionOptions options;
-
-        options.SetIntraOpNumThreads(1);
-
-        handle->session =
-            std::make_unique<Ort::Session>(
-                handle->env,
-                filename,
-                options
-            );
-
-        return 0;
-
-    }
-    catch (...) {
-
-        return -1;
-    }
-}
-
-int knn_predict_onnx(
-    KNNHandle* handle,
-    const float* X,
-    int rows,
-    int cols,
-    int* predictions
-)
-{
-    try {
-
-        std::vector<int64_t> shape = {
-            rows,
-            cols
-        };
-
-        auto memory =
-            Ort::MemoryInfo::CreateCpu(
-                OrtArenaAllocator,
-                OrtMemTypeDefault
-            );
-
-        auto input =
-            Ort::Value::CreateTensor<float>(
-                memory,
-                const_cast<float*>(X),
-                rows * cols,
-                shape.data(),
-                shape.size()
-            );
-
-        const char* input_names[] = {
-            "X"
-        };
-
-        const char* output_names[] = {
-            "output_label"
-        };
-
-        auto outputs =
-            handle->session->Run(
-                Ort::RunOptions{nullptr},
-                input_names,
-                &input,
-                1,
-                output_names,
-                1
-            );
-
-        auto labels =
-            outputs[0]
-                .GetTensorMutableData<int64_t>();
-
-        for (int i = 0; i < rows; i++) {
-
-            predictions[i] =
-                static_cast<int>(labels[i]);
-        }
-
-        return 0;
-
-    }
-    catch (...) {
 
         return -1;
     }

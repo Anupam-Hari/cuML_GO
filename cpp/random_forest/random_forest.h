@@ -39,19 +39,6 @@ int rf_predict(
     int backend
 );
 
-int random_forest_load_onnx(
-    RFHandle* handle,
-    const char* filename
-);
-
-int random_forest_predict_onnx(
-    RFHandle* handle,
-    const float* X,
-    int n_samples,
-    int n_features,
-    int* predictions
-);
-
 int rf_save(
     RFHandle* handle,
     const char* filename);

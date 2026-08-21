@@ -6,8 +6,6 @@
 #include <raft/core/handle.hpp>
 #include <rmm/cuda_stream_pool.hpp>
 #include <raft/random/rng_state.hpp>
-#include <onnxruntime_cxx_api.h>
-
 
 #include <vector>
 #include <memory>
@@ -33,12 +31,6 @@ struct KMeansHandle {
           inertia(0.0f)
     {
     }
-
-    Ort::Env env{
-        ORT_LOGGING_LEVEL_WARNING,
-        "kmeans"
-    };
-    std::unique_ptr<Ort::Session> session;
 };
 
 KMeansHandle* kmeans_create(
@@ -186,121 +178,6 @@ int kmeans_predict(
         cuda_utils::Free(d_X);
         cuda_utils::Free(d_centroids);
         cuda_utils::Free(d_labels);
-
-        return -1;
-    }
-}
-
-int kmeans_load_onnx(
-    KMeansHandle* handle,
-    const char* filename
-)
-{
-    try {
-
-        Ort::SessionOptions options;
-
-        options.SetIntraOpNumThreads(1);
-
-        handle->session =
-            std::make_unique<Ort::Session>(
-                handle->env,
-                filename,
-                options
-            );
-
-        return 0;
-
-    }
-    catch (...) {
-
-        return -1;
-    }
-}
-
-int kmeans_predict_onnx(
-    KMeansHandle* handle,
-    const float* X,
-    int rows,
-    int cols,
-    int* predictions
-)
-{
-    try {
-
-        std::vector<int64_t> shape = {
-            rows,
-            cols
-        };
-
-        auto memory =
-            Ort::MemoryInfo::CreateCpu(
-                OrtArenaAllocator,
-                OrtMemTypeDefault
-            );
-
-        auto input =
-            Ort::Value::CreateTensor<float>(
-                memory,
-                const_cast<float*>(X),
-                rows * cols,
-                shape.data(),
-                shape.size()
-            );
-
-        const char* input_names[] = {
-            "X"
-        };
-
-        const char* output_names[] = {
-            "label"
-        };
-
-        auto outputs =
-            handle->session->Run(
-                Ort::RunOptions{nullptr},
-                input_names,
-                &input,
-                1,
-                output_names,
-                1
-            );
-
-        auto labels =
-            outputs[0]
-                .GetTensorMutableData<int64_t>();
-
-        for (int i = 0; i < rows; i++) {
-
-            predictions[i] =
-                static_cast<int>(labels[i]);
-        }
-
-        return 0;
-
-    }
-    catch (const Ort::Exception& e) {
-        std::cerr
-            << "ONNX exception: "
-            << e.what()
-            << std::endl;
-
-        return -1;
-    }
-
-    catch (const std::exception& e) {
-        std::cerr
-            << "std::exception: "
-            << e.what()
-            << std::endl;
-
-        return -1;
-    }
-
-    catch (...) {
-        std::cerr
-            << "unknown exception"
-            << std::endl;
 
         return -1;
     }
