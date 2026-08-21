@@ -28,41 +28,60 @@ func TestKMeansCPUProcessedDataset(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Flatten 2D → 1D (same as internal matrix does)
+	// Flatten 2D → 1D
 	nSamples := len(X)
 	if nSamples == 0 {
 		t.Fatal("empty dataset")
 	}
+
 	nFeatures := len(X[0])
 
 	data := make([]float32, 0, nSamples*nFeatures)
+
 	for _, row := range X {
 		data = append(data, row...)
 	}
 
-	kmeans := New(
-		8,     // nClusters
-		300,   // maxIters
-		1e-4,  // tolerance
+	// Create
+	kmeans, err := New(
+		8,    // nClusters
+		300,  // maxIters
+		1e-4, // tolerance
 	)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer kmeans.Free()
 
-	kmeans.Fit(
+	// Fit
+	if err := kmeans.Fit(
 		data,
 		nSamples,
 		nFeatures,
-	)
+	); err != nil {
+		t.Fatal(err)
+	}
 
-	labels := kmeans.Predict(
+	// Predict
+	labels, err := kmeans.Predict(
 		data,
 		nSamples,
 	)
+	if err != nil {
+		t.Fatal(err)
+	}
 
+	// Validate
 	if len(labels) != nSamples {
-		t.Fatalf("expected %d labels, got %d", nSamples, len(labels))
+		t.Fatalf(
+			"expected %d labels, got %d",
+			nSamples,
+			len(labels),
+		)
 	}
 
 	clusterCount := make(map[int]int)
+
 	for _, label := range labels {
 		clusterCount[int(label)]++
 	}
@@ -71,6 +90,10 @@ func TestKMeansCPUProcessedDataset(t *testing.T) {
 	t.Logf("Clusters found : %d", len(clusterCount))
 
 	for c, count := range clusterCount {
-		t.Logf("Cluster %d : %d samples", c, count)
+		t.Logf(
+			"Cluster %d : %d samples",
+			c,
+			count,
+		)
 	}
 }

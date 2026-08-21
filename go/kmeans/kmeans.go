@@ -95,20 +95,26 @@ func (kmeans *KMeans) Fit(X [][]float32) error {
 	}
 
 	// CPU path
-	kmeans.cpu = capi.KMeansCPUCreate(
-		kmeans.nClusters,
-		kmeans.maxIters,
-		kmeans.tolerance,
-	)
+	if kmeans.cpu == nil {
 
-	capi.KMeansCPUFit(
+		cpu, err := capi.KMeansCPUCreate(
+			kmeans.nClusters,
+			kmeans.maxIters,
+			kmeans.tolerance,
+		)
+		if err != nil {
+			return err
+		}
+
+		kmeans.cpu = cpu
+	}
+
+	return capi.KMeansCPUFit(
 		kmeans.cpu,
 		dense.Data,
 		dense.Rows,
 		dense.Cols,
 	)
-
-	return nil
 }
 
 func (kmeans *KMeans) Predict(X [][]float32) ([]int, error) {
@@ -134,11 +140,18 @@ func (kmeans *KMeans) Predict(X [][]float32) ([]int, error) {
 	}
 
 	// CPU path
-	pred := capi.KMeansCPUPredict(
+	if kmeans.cpu == nil {
+		return nil, fmt.Errorf("kmeans CPU model is not fitted")
+	}
+
+	pred, err := capi.KMeansCPUPredict(
 		kmeans.cpu,
 		dense.Data,
 		dense.Rows,
 	)
+	if err != nil {
+		return nil, err
+	}
 
 	return matrix.FromCInt32(pred), nil
 }

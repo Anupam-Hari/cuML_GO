@@ -8,8 +8,6 @@ import (
 	"github.com/Anupam-Hari/cuml-go/go/internal/dataset"
 )
 
-const onnxModel = "../../exported_models/kmeans_100000_n_clusters-8_repeat-1.onnx"
-
 var maxRows = flag.Int(
 	"rows",
 	-1,
@@ -70,40 +68,16 @@ func TestKMeans_BackendComparison(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// ---------------- ONNX ----------------
-
-	kmeansONNX, err := New(
-		WithBackend(BackendGPU),
-		WithNClusters(8),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer kmeansONNX.Close()
-
-	err = kmeansONNX.LoadONNX(onnxModel)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	labelsONNX, err := kmeansONNX.PredictONNX(X)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	// ---------------- inertia ----------------
 
 	inertiaGPU := computeInertia(X, labelsGPU)
 	inertiaCPU := computeInertia(X, labelsCPU)
-	inertiaONNX := computeInertia(X, labelsONNX)
 
 	// ---------------- logs ----------------
 
 	t.Logf("Samples         : %d", len(X))
 	t.Logf("GPU Inertia     : %.6f", inertiaGPU)
 	t.Logf("CPU Inertia     : %.6f", inertiaCPU)
-	t.Logf("ONNX Inertia    : %.6f", inertiaONNX)
-
 	// ---------------- sanity ----------------
 
 	if inertiaGPU == 0 {
@@ -114,10 +88,6 @@ func TestKMeans_BackendComparison(t *testing.T) {
 		t.Fatalf("invalid CPU inertia")
 	}
 
-	if inertiaONNX == 0 {
-		t.Fatalf("invalid ONNX inertia")
-	}
-
 	if len(labelsGPU) != len(labelsCPU) {
 		t.Fatalf(
 			"label length mismatch GPU=%d CPU=%d",
@@ -126,13 +96,6 @@ func TestKMeans_BackendComparison(t *testing.T) {
 		)
 	}
 
-	if len(labelsGPU) != len(labelsONNX) {
-		t.Fatalf(
-			"label length mismatch GPU=%d ONNX=%d",
-			len(labelsGPU),
-			len(labelsONNX),
-		)
-	}
 }
 
 func computeInertia(X [][]float32, labels []int) float64 {

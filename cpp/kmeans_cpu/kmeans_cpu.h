@@ -1,4 +1,5 @@
-#pragma once
+#ifndef KMEANS_CPU_H
+#define KMEANS_CPU_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -12,18 +13,18 @@ KMeansCPUHandle* kmeans_cpu_create(
     float tol
 );
 
-void kmeans_cpu_fit(
+int kmeans_cpu_fit(
     KMeansCPUHandle* handle,
     const float* X,
-    int n_samples,
-    int n_features
+    int rows,
+    int cols
 );
 
-void kmeans_cpu_predict(
+int kmeans_cpu_predict(
     KMeansCPUHandle* handle,
     const float* X,
-    int n_samples,
-    int* labels
+    int rows,
+    int* predictions
 );
 
 void kmeans_cpu_free(
@@ -32,4 +33,6 @@ void kmeans_cpu_free(
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif
