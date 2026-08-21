@@ -12,18 +12,18 @@ find_package(OpenMP REQUIRED)
 
 add_library(cumlgo SHARED
     cpp/random_forest/random_forest.cpp
+    cpp/random_forest_cpu/random_forest_cpu.cpp
     cpp/kmeans/kmeans.cpp
     cpp/kmeans_cpu/kmeans_cpu.cpp
     cpp/knn/knn.cpp
     cpp/knn_cpu/knn_cpu.cpp
     cpp/common/cuda_utils.cpp
-    cpp/gpu_monitor/gpu_monitor.cpp
 )
 
 target_include_directories(cumlgo PRIVATE
     ${CMAKE_SOURCE_DIR}/cpp
     /usr/include/x86_64-linux-gnu
-    /home/anupam/opt/onnxruntime-linux-x64-1.22.0/include
+    ${CONDA_PREFIX}/include
 )
 
 target_link_libraries(cumlgo PRIVATE
@@ -32,21 +32,4 @@ target_link_libraries(cumlgo PRIVATE
     ${BLAS_LIBRARIES}
     OpenMP::OpenMP_CXX
     /home/anupam/opt/onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so
-)
-
-add_executable(test_cuml
-    benchmark/main.cpp
-    benchmark/benchmark.cpp
-    benchmark/utils/csv_writer.cpp
-    benchmark/data/dataset_loader.cpp
-)
-
-target_include_directories(test_cuml PRIVATE
-    ${CMAKE_SOURCE_DIR}/cpp
-    ${CMAKE_SOURCE_DIR}/benchmark
-    /home/anupam/opt/onnxruntime-linux-x64-1.22.0/include
-)
-
-target_link_libraries(test_cuml PRIVATE
-    cumlgo
 )
