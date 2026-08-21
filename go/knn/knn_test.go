@@ -4,6 +4,7 @@ import (
 	"flag"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/Anupam-Hari/cuml-go/go/internal/dataset"
 )

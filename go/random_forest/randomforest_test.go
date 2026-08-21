@@ -4,6 +4,7 @@ import (
 	"flag"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/Anupam-Hari/cuml-go/go/internal/dataset"
 )
@@ -45,6 +46,8 @@ func TestRandomForest_BackendComparison(t *testing.T) {
 
 	// ---------------- GPU ----------------
 
+	start := time.Now()
+
 	predGPU, err := rf.Predict(
 		X,
 		BackendGPU,
@@ -53,12 +56,16 @@ func TestRandomForest_BackendComparison(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	gpuDuration := time.Since(start)
+
 	accGPU := computeAccuracy(
 		predGPU,
 		y,
 	)
 
 	// ---------------- CPU ----------------
+
+	start = time.Now()
 
 	predCPU, err := rf.Predict(
 		X,
@@ -67,6 +74,8 @@ func TestRandomForest_BackendComparison(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	cpuDuration := time.Since(start)
 
 	accCPU := computeAccuracy(
 		predCPU,
@@ -79,10 +88,14 @@ func TestRandomForest_BackendComparison(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	start = time.Now()
+
 	predONNX, err := rf.PredictONNX(X)
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	onnxDuration := time.Since(start)
 
 	accONNX := computeAccuracy(
 		predONNX,
@@ -93,21 +106,14 @@ func TestRandomForest_BackendComparison(t *testing.T) {
 
 	t.Logf("Samples        : %d", len(y))
 
-	t.Logf(
-		"GPU Accuracy   : %.2f%%",
-		accGPU*100,
-	)
 
-	t.Logf(
-		"CPU Accuracy   : %.2f%%",
-		accCPU*100,
-	)
+	t.Logf("GPU Time       : %v", gpuDuration)
+	t.Logf("CPU Time       : %v", cpuDuration)
+	t.Logf("ONNX Time      : %v", onnxDuration)
 
-	t.Logf(
-		"ONNX Accuracy  : %.2f%%",
-		accONNX*100,
-	)
-
+	t.Logf("GPU Accuracy   : %.2f%%", accGPU*100)
+	t.Logf("CPU Accuracy   : %.2f%%", accCPU*100)
+	t.Logf("ONNX Accuracy  : %.2f%%", accONNX*100)
 	if len(predGPU) != len(predCPU) {
 		t.Fatalf(
 			"CPU/GPU prediction length mismatch: %d vs %d",

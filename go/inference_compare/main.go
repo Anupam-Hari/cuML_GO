@@ -250,60 +250,60 @@ func main() {
 	fmt.Println("All RF benchmarks complete")
 
 	XTrain := X[:trainingRows]
-	// yTrain := y[:trainingRows]
+	yTrain := y[:trainingRows]
 
-	// fmt.Println("Starting KNN training...")
+	fmt.Println("Starting KNN training...")
 
-	// knnGPU, knnCPU, knnONNX, err := TrainKNN(
-	// 	XTrain,
-	// 	yTrain,
-	// )
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
+	knnGPU, knnCPU, knnONNX, err := TrainKNN(
+		XTrain,
+		yTrain,
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// defer knnGPU.Close()
-	// defer knnCPU.Close()
-	// defer knnONNX.Close()
+	defer knnGPU.Close()
+	defer knnCPU.Close()
+	defer knnONNX.Close()
 
-	// fmt.Println("KNN training complete")
+	fmt.Println("KNN training complete")
 
-	// for _, rows := range predictRows {
+	for _, rows := range predictRows {
 
-	// 	fmt.Printf("KNN benchmark: %d rows\n", rows)
+		fmt.Printf("KNN benchmark: %d rows\n", rows)
 
-	// 	if rows > len(X) {
-	// 		log.Fatalf(
-	// 			"predict rows (%d) exceeds dataset size (%d)",
-	// 			rows,
-	// 			len(X),
-	// 		)
-	// 	}
+		if rows > len(X) {
+			log.Fatalf(
+				"predict rows (%d) exceeds dataset size (%d)",
+				rows,
+				len(X),
+			)
+		}
 
-	// 	start := len(X) - rows
+		start := len(X) - rows
 
-	// 	X_ := X[start:]
-	// 	y_ := y[start:]
+		X_ := X[start:]
+		y_ := y[start:]
 
-	// 	cfg := config
-	// 	cfg.PredictRows = rows
+		cfg := config
+		cfg.PredictRows = rows
 
-	// 	benchmarkResults, err := BenchmarkKNNInference(
-	// 		knnGPU,
-	// 		knnCPU,
-	// 		knnONNX,
-	// 		X_,
-	// 		y_,
-	// 		cfg,
-	// 	)
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
+		benchmarkResults, err := BenchmarkKNNInference(
+			knnGPU,
+			knnCPU,
+			knnONNX,
+			X_,
+			y_,
+			cfg,
+		)
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	// 	results = append(results, benchmarkResults...)
-	// 	fmt.Printf("KNN benchmark complete: %d rows\n", rows)
-	// }
-	// fmt.Printf("All KNN benchmark completed\n")
+		results = append(results, benchmarkResults...)
+		fmt.Printf("KNN benchmark complete: %d rows\n", rows)
+	}
+	fmt.Printf("All KNN benchmark completed\n")
 
 	fmt.Println("Starting KMeans training...")
 

@@ -85,7 +85,7 @@ func benchmarkBackend(
 	// Metrics
 	//-------------------------------------------------
 
-	fmt.Println("Creating metrics")
+	// fmt.Println("Creating metrics")
 
 	metrics, err := benchmark.NewMetrics()
 	if err != nil {
@@ -93,7 +93,7 @@ func benchmarkBackend(
 	}
 	defer metrics.Close()
 
-	fmt.Println("Metrics created")
+	// fmt.Println("Metrics created")
 
 	//-------------------------------------------------
 	// Benchmark
@@ -105,13 +105,13 @@ func benchmarkBackend(
 
 	metrics.Start()
 
-	fmt.Println("Starting timer")
+	// fmt.Println("Starting timer")
 
 	timer.Start()
 
 	for i := 0; i < repeats; i++ {
 
-		fmt.Printf("Prediction %d/%d\n", i+1, repeats)
+		// fmt.Printf("Prediction %d/%d\n", i+1, repeats)
 
 		pred, err = predict()
 		if err != nil {
