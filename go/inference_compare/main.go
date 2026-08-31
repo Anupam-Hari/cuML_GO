@@ -25,7 +25,7 @@ func TrainRF(
 
 	rfGPU, err = randomforest.New(
 		randomforest.WithEstimators(100),
-		randomforest.WithMaxDepth(16),
+		randomforest.WithMaxDepth(10),
 		randomforest.WithBackend(randomforest.BackendGPU),
 	)
 	if err != nil {
@@ -41,7 +41,7 @@ func TrainRF(
 
 	rfCPU, err = randomforest.New(
 		randomforest.WithEstimators(100),
-		randomforest.WithMaxDepth(16),
+		randomforest.WithMaxDepth(10),
 		randomforest.WithBackend(randomforest.BackendCPU),
 	)
 	if err != nil {
@@ -266,102 +266,102 @@ func main() {
 
 	fmt.Println("All RF benchmarks complete")
 
-	// fmt.Println("Starting KNN training...")
+	fmt.Println("Starting KNN training...")
 
-	// knnGPU, knnCPU, err := TrainKNN(
-	// 	XTrain,
-	// 	yTrain,
-	// )
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
+	knnGPU, knnCPU, err := TrainKNN(
+		XTrain,
+		yTrain,
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// defer knnGPU.Close()
-	// defer knnCPU.Close()
+	defer knnGPU.Close()
+	defer knnCPU.Close()
 
-	// fmt.Println("KNN training complete")
+	fmt.Println("KNN training complete")
 
-	// for _, rows := range predictRows {
+	for _, rows := range predictRows {
 
-	// 	fmt.Printf("KNN benchmark: %d rows\n", rows)
+		fmt.Printf("KNN benchmark: %d rows\n", rows)
 
-	// 	if rows > len(X) {
-	// 		log.Fatalf(
-	// 			"predict rows (%d) exceeds dataset size (%d)",
-	// 			rows,
-	// 			len(X),
-	// 		)
-	// 	}
+		if rows > len(X) {
+			log.Fatalf(
+				"predict rows (%d) exceeds dataset size (%d)",
+				rows,
+				len(X),
+			)
+		}
 
-	// 	start := len(X) - rows
+		start := len(X) - rows
 
-	// 	X_ := X[start:]
-	// 	y_ := y[start:]
+		X_ := X[start:]
+		y_ := y[start:]
 
-	// 	cfg := config
-	// 	cfg.PredictRows = rows
+		cfg := config
+		cfg.PredictRows = rows
 
-	// 	benchmarkResults, err := BenchmarkKNNInference(
-	// 		knnGPU,
-	// 		knnCPU,
-	// 		X_,
-	// 		y_,
-	// 		cfg,
-	// 	)
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
+		benchmarkResults, err := BenchmarkKNNInference(
+			knnGPU,
+			knnCPU,
+			X_,
+			y_,
+			cfg,
+		)
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	// 	results = append(results, benchmarkResults...)
-	// 	fmt.Printf("KNN benchmark complete: %d rows\n", rows)
-	// }
-	// fmt.Printf("All KNN benchmark completed\n")
+		results = append(results, benchmarkResults...)
+		fmt.Printf("KNN benchmark complete: %d rows\n", rows)
+	}
+	fmt.Printf("All KNN benchmark completed\n")
 
-	// fmt.Println("Starting KMeans training...")
+	fmt.Println("Starting KMeans training...")
 
-	// kmeansGPU, kmeansCPU, err := TrainKMeans(
-	// 	XTrain,
-	// )
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
+	kmeansGPU, kmeansCPU, err := TrainKMeans(
+		XTrain,
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// defer kmeansGPU.Close()
-	// defer kmeansCPU.Close()
+	defer kmeansGPU.Close()
+	defer kmeansCPU.Close()
 
-	// fmt.Println("KMeans training complete")
+	fmt.Println("KMeans training complete")
 
-	// for _, rows := range predictRows {
-	// 	fmt.Printf("KMeans benchmark: %d rows\n", rows)
+	for _, rows := range predictRows {
+		fmt.Printf("KMeans benchmark: %d rows\n", rows)
 
-	// 	if rows > len(X) {
-	// 		log.Fatalf(
-	// 			"predict rows (%d) exceeds dataset size (%d)",
-	// 			rows,
-	// 			len(X),
-	// 		)
-	// 	}
+		if rows > len(X) {
+			log.Fatalf(
+				"predict rows (%d) exceeds dataset size (%d)",
+				rows,
+				len(X),
+			)
+		}
 
-	// 	start := len(X) - rows
+		start := len(X) - rows
 
-	// 	X_ := X[start:]
+		X_ := X[start:]
 
-	// 	cfg := config
-	// 	cfg.PredictRows = rows
+		cfg := config
+		cfg.PredictRows = rows
 
-	// 	benchmarkResults, err := BenchmarkKMeansInference(
-	// 		kmeansGPU,
-	// 		kmeansCPU,
-	// 		X_,
-	// 		cfg,
-	// 	)
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
+		benchmarkResults, err := BenchmarkKMeansInference(
+			kmeansGPU,
+			kmeansCPU,
+			X_,
+			cfg,
+		)
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	// 	results = append(results, benchmarkResults...)
-	// 	fmt.Printf("KMeans benchmark complete: %d rows\n", rows)
-	// }
+		results = append(results, benchmarkResults...)
+		fmt.Printf("KMeans benchmark complete: %d rows\n", rows)
+	}
 	fmt.Println("All KMeans benchmarks complete")
 
 	timestamp := time.Now().Format("020106150405")
@@ -386,14 +386,11 @@ func main() {
 	fmt.Printf("\nResults written to %s\n", resultsFile)
 	fmt.Printf("Summary written to %s\n", summaryFile)
 
-	for _, r := range results {
-
-		fmt.Printf(
-			"%25s | %4s | %6d rows | %.2f M samples/s\n",
-			r.Model,
-			r.Backend,
-			r.PredictRows,
-			r.Throughput/1e6,
-		)
-	}
+	comparePythonGoThroughput(summaryFile)
 }
+
+// func main() {
+//     comparePythonGoThroughput(
+//         "/home/anupam/projects/cuml-go/go/inference_compare/results/inference_results_310826113313_summary.csv",
+//     )
+// }

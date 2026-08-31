@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	benchmarkutil "github.com/Anupam-Hari/cuml-go/go/internal/benchmark"
 	"github.com/Anupam-Hari/cuml-go/go/internal/dataset"
 )
 
@@ -43,10 +44,27 @@ func TestKMeans_BackendComparison(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	labelsGPU, err := kmeansGPU.Predict(X)
+	gpuMetrics, err := benchmarkutil.NewMetrics()
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	gpuTimer := benchmarkutil.Timer{}
+
+	gpuMetrics.Start()
+	gpuTimer.Start()
+
+	labelsGPU, err := kmeansGPU.Predict(X)
+
+	gpuTimeMS := gpuTimer.Stop()
+	gpuMetrics.Stop()
+	gpuMetrics.Close()
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gpuThroughput := float64(len(X)) / (gpuTimeMS / 1000.0)
 
 	// ---------------- CPU ----------------
 
@@ -63,10 +81,27 @@ func TestKMeans_BackendComparison(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	labelsCPU, err := kmeansCPU.Predict(X)
+	cpuMetrics, err := benchmarkutil.NewMetrics()
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	cpuTimer := benchmarkutil.Timer{}
+
+	cpuMetrics.Start()
+	cpuTimer.Start()
+
+	labelsCPU, err := kmeansCPU.Predict(X)
+
+	cpuTimeMS := cpuTimer.Stop()
+	cpuMetrics.Stop()
+	cpuMetrics.Close()
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cpuThroughput := float64(len(X)) / (cpuTimeMS / 1000.0)
 
 	// ---------------- inertia ----------------
 
@@ -76,8 +111,25 @@ func TestKMeans_BackendComparison(t *testing.T) {
 	// ---------------- logs ----------------
 
 	t.Logf("Samples         : %d", len(X))
+
+	t.Logf(
+		"GPU Throughput  : %.3f M samples/s",
+		gpuThroughput/1e6,
+	)
+
+	t.Logf(
+		"CPU Throughput  : %.3f M samples/s",
+		cpuThroughput/1e6,
+	)
+
+	t.Logf(
+		"GPU/CPU Speedup : %.2fx",
+		gpuThroughput/cpuThroughput,
+	)
+
 	t.Logf("GPU Inertia     : %.6f", inertiaGPU)
 	t.Logf("CPU Inertia     : %.6f", inertiaCPU)
+
 	// ---------------- sanity ----------------
 
 	if inertiaGPU == 0 {

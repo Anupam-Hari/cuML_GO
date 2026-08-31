@@ -8,6 +8,9 @@
 #include <cstdint>
 #include <iostream>
 #include <memory>
+#include <omp.h>
+#include <cblas.h>
+#include <vector>
 
 struct KMeansCPUHandle {
 
@@ -16,6 +19,8 @@ struct KMeansCPUHandle {
     float tol;
 
     int n_features;
+
+    std::vector<double> centroid_norms;
 
     /*
      * mlpack / Armadillo stores matrices as:
@@ -192,6 +197,16 @@ int kmeans_cpu_fit(
 
         handle->fitted = true;
 
+        handle->centroid_norms.resize(handle->k);
+
+        for (int c = 0; c < handle->k; ++c) {
+            handle->centroid_norms[c] =
+                arma::dot(
+                    handle->centroids.col(c),
+                    handle->centroids.col(c)
+                );
+        }
+
         return 0;
     }
     catch (const std::exception& e) {
@@ -224,72 +239,170 @@ int kmeans_cpu_predict(
         return -1;
     }
 
-    if (rows <= 0) {
-        return -1;
-    }
-
-    if (handle->n_features <= 0) {
+    if (rows <= 0 || handle->n_features <= 0) {
         return -1;
     }
 
     try {
 
-        const int cols = handle->n_features;
+        const int d = handle->n_features;
+        const int chunk_size = 256;
+        const int n_chunks =
+            (rows + chunk_size - 1) / chunk_size;
 
-        /*
-         * Convert row-major Go data into Armadillo format.
-         */
+        const int n_threads =
+            std::min(
+                omp_get_max_threads(),
+                n_chunks
+            );
 
-        arma::mat data(
-            cols,
-            rows,
-            arma::fill::none
+        std::vector<std::vector<double>> thread_X_double(
+            n_threads
         );
 
-        for (int r = 0; r < rows; ++r) {
+        std::vector<std::vector<double>> thread_distances(
+            n_threads
+        );
 
-            for (int c = 0; c < cols; ++c) {
+        for (int thread = 0; thread < n_threads; ++thread) {
 
-                data(c, r) =
-                    static_cast<double>(
-                        X[r * cols + c]
-                    );
-            }
+            thread_X_double[thread].resize(
+                static_cast<size_t>(chunk_size) * d
+            );
+
+            thread_distances[thread].resize(
+                static_cast<size_t>(chunk_size) * handle->k
+            );
         }
 
-        /*
-         * Assign every sample to its nearest centroid.
-         *
-         * assignments:
-         *
-         *   one cluster ID per input sample
-         */
+        #pragma omp parallel
+        {
+            const int thread_id = omp_get_thread_num();
 
-        for (int r = 0; r < rows; ++r) {
+            double* local_X =
+                thread_X_double[thread_id].data();
 
-            double best_distance = std::numeric_limits<double>::max();
-            int best_cluster = 0;
+            double* local_distances =
+                thread_distances[thread_id].data();
 
-            for (int c = 0; c < handle->k; ++c) {
+            #pragma omp for schedule(static)
+            for (int chunk_idx = 0;
+                 chunk_idx < n_chunks;
+                 ++chunk_idx) {
 
-                double distance = 0.0;
+                const int start =
+                    chunk_idx * chunk_size;
 
-                for (int f = 0; f < cols; ++f) {
+                const int count =
+                    std::min(
+                        chunk_size,
+                        rows - start
+                    );
 
-                    const double diff =
-                        data(f, r) -
-                        handle->centroids(f, c);
+                /*
+                 * Convert this chunk from Go's
+                 * row-major float32 format to
+                 * row-major double format.
+                 */
+                for (int i = 0; i < count; ++i) {
 
-                    distance += diff * diff;
+                    for (int j = 0; j < d; ++j) {
+
+                        local_X[
+                            static_cast<size_t>(i) * d + j
+                        ] =
+                            static_cast<double>(
+                                X[
+                                    static_cast<size_t>(start + i) * d + j
+                                ]
+                            );
+                    }
                 }
 
-                if (distance < best_distance) {
-                    best_distance = distance;
-                    best_cluster = c;
+                /*
+                 * distances =
+                 *
+                 *     -2 * X * C^T
+                 *
+                 * mlpack centroids are stored as:
+                 *
+                 *     features x clusters
+                 *
+                 * so CblasTrans gives us:
+                 *
+                 *     clusters x features
+                 */
+                cblas_dgemm(
+                    CblasRowMajor,
+                    CblasNoTrans,
+                    CblasTrans,
+
+                    count,
+                    handle->k,
+                    d,
+
+                    -2.0,
+
+                    local_X,
+                    d,
+
+                    handle->centroids.memptr(),
+                    d,
+
+                    0.0,
+
+                    local_distances,
+                    handle->k
+                );
+
+                /*
+                 * Add ||C||².
+                 */
+                for (int i = 0; i < count; ++i) {
+
+                    for (int c = 0;
+                         c < handle->k;
+                         ++c) {
+
+                        local_distances[
+                            static_cast<size_t>(i) * handle->k + c
+                        ] +=
+                            handle->centroid_norms[c];
+                    }
+                }
+
+                /*
+                 * Find nearest centroid.
+                 */
+                for (int i = 0; i < count; ++i) {
+
+                    int best_cluster = 0;
+
+                    double best_distance =
+                        local_distances[
+                            static_cast<size_t>(i) * handle->k
+                        ];
+
+                    for (int c = 1;
+                         c < handle->k;
+                         ++c) {
+
+                        const double distance =
+                            local_distances[
+                                static_cast<size_t>(i) * handle->k + c
+                            ];
+
+                        if (distance < best_distance) {
+
+                            best_distance = distance;
+                            best_cluster = c;
+                        }
+                    }
+
+                    predictions[start + i] =
+                        best_cluster;
                 }
             }
-
-            predictions[r] = best_cluster;
         }
 
         return 0;

@@ -4,8 +4,9 @@ project(cuml_go LANGUAGES CXX CUDA)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-find_package(BLAS REQUIRED)
 
+find_package(BLAS REQUIRED)
+find_package(LAPACK REQUIRED)
 find_package(cuml CONFIG REQUIRED)
 find_package(raft CONFIG REQUIRED)
 find_package(OpenMP REQUIRED)
@@ -27,9 +28,13 @@ target_include_directories(cumlgo PRIVATE
 )
 
 target_link_libraries(cumlgo PRIVATE
-    PRIVATE
     cuml::cuml
     ${BLAS_LIBRARIES}
+    ${LAPACK_LIBRARIES}
     OpenMP::OpenMP_CXX
     /home/anupam/opt/onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so
+)
+
+target_compile_definitions(cumlgo PRIVATE
+    ARMA_DONT_USE_WRAPPER
 )
