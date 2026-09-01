@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 
 	benchmark "github.com/Anupam-Hari/cuml-go/go/internal/benchmark"
 	knn "github.com/Anupam-Hari/cuml-go/go/knn"
@@ -28,6 +29,122 @@ func computeAccuracy(
 	}
 
 	return float64(correct) / float64(len(labels))
+}
+
+func computeSilhouetteScore(
+	features [][]float32,
+	labels []int,
+	sampleSize int,
+) float64 {
+	if len(features) == 0 ||
+		len(features) != len(labels) {
+		return 0
+	}
+
+	if sampleSize > len(features) {
+		sampleSize = len(features)
+	}
+
+	// Use the first sampleSize points.
+	// Since the inference dataset is already fixed,
+	// this makes the metric deterministic.
+	features = features[:sampleSize]
+	labels = labels[:sampleSize]
+
+	// Check that at least two clusters exist.
+	uniqueClusters := make(map[int]struct{})
+
+	for _, label := range labels {
+		uniqueClusters[label] = struct{}{}
+	}
+
+	if len(uniqueClusters) < 2 {
+		return 0
+	}
+
+	totalScore := 0.0
+
+	for i := 0; i < len(features); i++ {
+		currentLabel := labels[i]
+
+		intraDistance := 0.0
+		intraCount := 0
+
+		clusterDistances := make(map[int]float64)
+		clusterCounts := make(map[int]int)
+
+		for j := 0; j < len(features); j++ {
+			if i == j {
+				continue
+			}
+
+			distance := euclideanDistance(
+				features[i],
+				features[j],
+			)
+
+			if labels[j] == currentLabel {
+				intraDistance += distance
+				intraCount++
+			} else {
+				clusterDistances[labels[j]] += distance
+				clusterCounts[labels[j]]++
+			}
+		}
+
+		if intraCount == 0 {
+			continue
+		}
+
+		a := intraDistance / float64(intraCount)
+
+		b := math.MaxFloat64
+
+		for cluster, distanceSum := range clusterDistances {
+			count := clusterCounts[cluster]
+
+			if count == 0 {
+				continue
+			}
+
+			averageDistance := distanceSum / float64(count)
+
+			if averageDistance < b {
+				b = averageDistance
+			}
+		}
+
+		if a == 0 && b == 0 {
+			continue
+		}
+
+		denominator := math.Max(a, b)
+
+		if denominator > 0 {
+			totalScore += (b - a) / denominator
+		}
+	}
+
+	return totalScore / float64(len(features))
+}
+
+func euclideanDistance(a, b []float32) float64 {
+	sum := 0.0
+
+	for i := range a {
+		diff := float64(a[i] - b[i])
+		sum += diff * diff
+	}
+
+	return math.Sqrt(sum)
+}
+
+func maxFloat64(a, b float64) float64 {
+	if a > b {
+		return a
+	}
+
+	return b
 }
 
 func calculateThroughput(
@@ -58,12 +175,12 @@ func benchmarkBackend(
 	err error,
 ) {
 
-	fmt.Printf(
-		"Benchmark backend: warmup=%d repeats=%d samples=%d\n",
-		warmupRuns,
-		repeats,
-		samples,
-	)
+	// fmt.Printf(
+	// 	"Benchmark backend: warmup=%d repeats=%d samples=%d\n",
+	// 	warmupRuns,
+	// 	repeats,
+	// 	samples,
+	// )
 
 	//-------------------------------------------------
 	// Warmup
@@ -71,7 +188,7 @@ func benchmarkBackend(
 
 	for i := 0; i < warmupRuns; i++ {
 
-		fmt.Printf("Warmup %d/%d\n", i+1, warmupRuns)
+		// fmt.Printf("Warmup %d/%d\n", i+1, warmupRuns)
 
 		_, err = predict()
 		if err != nil {
@@ -79,7 +196,7 @@ func benchmarkBackend(
 		}
 	}
 
-	fmt.Println("Warmup complete")
+	// fmt.Println("Warmup complete")
 
 	//-------------------------------------------------
 	// Metrics
@@ -101,7 +218,7 @@ func benchmarkBackend(
 
 	timer := benchmark.Timer{}
 
-	fmt.Println("Starting metrics")
+	// fmt.Println("Starting metrics")
 
 	metrics.Start()
 
@@ -120,13 +237,13 @@ func benchmarkBackend(
 		}
 	}
 
-	fmt.Println("All predictions complete")
+	// fmt.Println("All predictions complete")
 
 	avgTimeMS = timer.Stop() / float64(repeats)
 
 	metrics.Stop()
 
-	fmt.Println("Metrics stopped")
+	// fmt.Println("Metrics stopped")
 
 	throughput = calculateThroughput(
 		samples,
@@ -376,7 +493,7 @@ func BenchmarkKMeansInference(
 	// GPU
 	//-------------------------------------------------
 
-	_,
+	gpuPred,
 		gpuTime,
 		gpuThroughput,
 		gpuCPUAvg,
@@ -397,7 +514,7 @@ func BenchmarkKMeansInference(
 	// CPU
 	//-------------------------------------------------
 
-	_,
+	cpuPred,
 		cpuTime,
 		cpuThroughput,
 		cpuCPUAvg,
@@ -418,21 +535,33 @@ func BenchmarkKMeansInference(
 	// Results
 	//-------------------------------------------------
 
+	gpuMetric := computeSilhouetteScore(
+		X,
+		gpuPred,
+		5000,
+	)
+
 	gpuResult := createBenchmarkResult(
 		modelName,
 		"gpu",
 		config.PredictRows,
-		0,
+		gpuMetric,
 		gpuTime,
 		gpuThroughput,
 		gpuCPUAvg,
+	)
+
+	cpuMetric := computeSilhouetteScore(
+		X,
+		cpuPred,
+		5000,
 	)
 
 	cpuResult := createBenchmarkResult(
 		modelName,
 		"cpu",
 		config.PredictRows,
-		0,
+		cpuMetric,
 		cpuTime,
 		cpuThroughput,
 		cpuCPUAvg,

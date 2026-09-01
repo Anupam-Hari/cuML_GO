@@ -1,12 +1,12 @@
 package main
 
 import (
-	"fmt"
-	"log"
-	"time"
-	"path/filepath"
-	"strings"
-	"github.com/Anupam-Hari/cuml-go/go/internal/dataset"
+	// "fmt"
+	// "log"
+	// "time"
+	// "path/filepath"
+	// "strings"
+	// "github.com/Anupam-Hari/cuml-go/go/internal/dataset"
 	randomforest "github.com/Anupam-Hari/cuml-go/go/random_forest"
 	knn "github.com/Anupam-Hari/cuml-go/go/knn"
 	kmeans "github.com/Anupam-Hari/cuml-go/go/kmeans"
@@ -24,8 +24,8 @@ func TrainRF(
 	// ---------------- GPU ----------------
 
 	rfGPU, err = randomforest.New(
-		randomforest.WithEstimators(100),
-		randomforest.WithMaxDepth(10),
+		randomforest.WithEstimators(50),
+		randomforest.WithMaxDepth(20),
 		randomforest.WithBackend(randomforest.BackendGPU),
 	)
 	if err != nil {
@@ -40,8 +40,8 @@ func TrainRF(
 	// ---------------- CPU ----------------
 
 	rfCPU, err = randomforest.New(
-		randomforest.WithEstimators(100),
-		randomforest.WithMaxDepth(10),
+		randomforest.WithEstimators(50),
+		randomforest.WithMaxDepth(20),
 		randomforest.WithBackend(randomforest.BackendCPU),
 	)
 	if err != nil {
@@ -68,7 +68,7 @@ func TrainKNN(
 ) {
 
 	knnGPU, err = knn.New(
-		knn.WithK(5),
+		knn.WithK(10),
 		knn.WithBackend(knn.BackendGPU),
 	)
 	if err != nil {
@@ -81,7 +81,7 @@ func TrainKNN(
 	}
 
 	knnCPU, err = knn.New(
-		knn.WithK(5),
+		knn.WithK(10),
 		knn.WithBackend(knn.BackendCPU),
 	)
 	if err != nil {
@@ -113,7 +113,7 @@ func TrainKMeans(
 
 	kmeansGPU, err = kmeans.New(
 		kmeans.WithBackend(kmeans.BackendGPU),
-		kmeans.WithNClusters(8),
+		kmeans.WithNClusters(5),
 	)
 	if err != nil {
 		return nil, nil, err
@@ -126,7 +126,7 @@ func TrainKMeans(
 
 	kmeansCPU, err = kmeans.New(
 		kmeans.WithBackend(kmeans.BackendCPU),
-		kmeans.WithNClusters(8),
+		kmeans.WithNClusters(5),
 	)
 
 	if err != nil { 
@@ -148,249 +148,248 @@ func TrainKMeans(
 	return kmeansGPU, kmeansCPU, nil
 }
 
-func main() {
-
-	config := Config{
-		ModelPath: "go/inference_compare/models/rf_model.tl",
-
-		DatasetPath: "benchmark/data/processed_network_traffic.csv",
-
-		PredictRows: 1000,
-
-		Repeats: 1,
-
-		WarmupRuns: 1,
-
-		CPUCores: 16,
-
-		SampleInterval: 20 * time.Millisecond,
-	}
-
-	const trainingRows = 1_000_000
-
-
-	predictRows := []int{
-		1000,
-		10000,
-		30000,
-		50000,
-		70000,
-	}
-
-	maxRows := trainingRows
-	for _, rows := range predictRows {
-		if rows > maxRows {
-			maxRows = rows
-		}
-	}
-
-	X, y, err := dataset.LoadCSV(
-		config.DatasetPath,
-		"is_malicious",
-		maxRows,
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if config.CPUCores > 0 {
-		randomforest.SetCPUThreads(config.CPUCores)
-	}
-
-	var results []BenchmarkResult
-
-	XTrain := X[:trainingRows]
-	yTrain := y[:trainingRows]
-
-	// -------------------------------------------------
-	// Random Forest training
-	// -------------------------------------------------
-
-	fmt.Println("Starting RF training...")
-
-	rfGPU, rfCPU, err := TrainRF(
-		XTrain,
-		yTrain,
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	defer rfGPU.Close()
-	defer rfCPU.Close()
-
-	fmt.Println("RF training complete")
-
-	// -------------------------------------------------
-	// RF benchmarks
-	// -------------------------------------------------
-
-	for _, rows := range predictRows {
-
-		fmt.Printf("RF benchmark: %d rows\n", rows)
-
-		if rows > len(X) {
-			log.Fatalf(
-				"predict rows (%d) exceeds dataset size (%d)",
-				rows,
-				len(X),
-			)
-		}
-
-		start := len(X) - rows
-
-		X_ := X[start:]
-		y_ := y[start:]
-
-		cfg := config
-		cfg.PredictRows = rows
-
-		benchmarkResults, err := BenchmarkRFInference(
-			rfGPU,
-			rfCPU,
-			X_,
-			y_,
-			cfg,
-		)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		results = append(results, benchmarkResults...)
-
-		fmt.Printf(
-			"RF benchmark complete: %d rows\n",
-			rows,
-		)
-	}
-
-	fmt.Println("All RF benchmarks complete")
-
-	fmt.Println("Starting KNN training...")
-
-	knnGPU, knnCPU, err := TrainKNN(
-		XTrain,
-		yTrain,
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	defer knnGPU.Close()
-	defer knnCPU.Close()
-
-	fmt.Println("KNN training complete")
-
-	for _, rows := range predictRows {
-
-		fmt.Printf("KNN benchmark: %d rows\n", rows)
-
-		if rows > len(X) {
-			log.Fatalf(
-				"predict rows (%d) exceeds dataset size (%d)",
-				rows,
-				len(X),
-			)
-		}
-
-		start := len(X) - rows
-
-		X_ := X[start:]
-		y_ := y[start:]
-
-		cfg := config
-		cfg.PredictRows = rows
-
-		benchmarkResults, err := BenchmarkKNNInference(
-			knnGPU,
-			knnCPU,
-			X_,
-			y_,
-			cfg,
-		)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		results = append(results, benchmarkResults...)
-		fmt.Printf("KNN benchmark complete: %d rows\n", rows)
-	}
-	fmt.Printf("All KNN benchmark completed\n")
-
-	fmt.Println("Starting KMeans training...")
-
-	kmeansGPU, kmeansCPU, err := TrainKMeans(
-		XTrain,
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	defer kmeansGPU.Close()
-	defer kmeansCPU.Close()
-
-	fmt.Println("KMeans training complete")
-
-	for _, rows := range predictRows {
-		fmt.Printf("KMeans benchmark: %d rows\n", rows)
-
-		if rows > len(X) {
-			log.Fatalf(
-				"predict rows (%d) exceeds dataset size (%d)",
-				rows,
-				len(X),
-			)
-		}
-
-		start := len(X) - rows
-
-		X_ := X[start:]
-
-		cfg := config
-		cfg.PredictRows = rows
-
-		benchmarkResults, err := BenchmarkKMeansInference(
-			kmeansGPU,
-			kmeansCPU,
-			X_,
-			cfg,
-		)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		results = append(results, benchmarkResults...)
-		fmt.Printf("KMeans benchmark complete: %d rows\n", rows)
-	}
-	fmt.Println("All KMeans benchmarks complete")
-
-	timestamp := time.Now().Format("020106150405")
-
-	resultsDir := "go/inference_compare/results"
-
-	resultsFile := filepath.Join(
-		resultsDir,
-		fmt.Sprintf("inference_results_%s.csv", timestamp),
-	)
-
-	if err := WriteResultsCSV(resultsFile, results); err != nil {
-		log.Fatal(err)
-	}
-
-	summaryFile := strings.TrimSuffix(resultsFile, ".csv") + "_summary.csv"
-
-	if err := WriteSummaryCSV(resultsFile, summaryFile); err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Printf("\nResults written to %s\n", resultsFile)
-	fmt.Printf("Summary written to %s\n", summaryFile)
-
-	comparePythonGoThroughput(summaryFile)
-}
-
 // func main() {
-//     comparePythonGoThroughput(
-//         "/home/anupam/projects/cuml-go/go/inference_compare/results/inference_results_310826113313_summary.csv",
-//     )
+
+// 	config := Config{
+// 		ModelPath: "go/inference_compare/models/rf_model.tl",
+
+// 		DatasetPath: "benchmark/data/processed_network_traffic.csv",
+
+// 		PredictRows: 1000,
+
+// 		Repeats: 10,
+
+// 		WarmupRuns: 2,
+
+// 		CPUCores: 16,
+
+// 		SampleInterval: 20 * time.Millisecond,
+// 	}
+
+// 	const trainingRows = 500_000
+
+
+// 	predictRows := []int{
+// 		1000,
+// 		10000,
+// 		30000,
+// 		50000,
+// 		70000,
+// 	}
+
+// 	// maxRows := trainingRows
+// 	// for _, rows := range predictRows {
+// 	// 	if rows > maxRows {
+// 	// 		maxRows = rows
+// 	// 	}
+// 	// }
+
+// 	X, y, err := dataset.LoadCSV(
+// 		config.DatasetPath,
+// 		0,
+// 	)
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+
+// 	if config.CPUCores > 0 {
+// 		randomforest.SetCPUThreads(config.CPUCores)
+// 	}
+
+// 	var results []BenchmarkResult
+
+// 	XTrain := X[:trainingRows]
+// 	yTrain := y[:trainingRows]
+
+// 	// -------------------------------------------------
+// 	// Random Forest training
+// 	// -------------------------------------------------
+
+// 	fmt.Println("Starting RF training...")
+
+// 	rfGPU, rfCPU, err := TrainRF(
+// 		XTrain,
+// 		yTrain,
+// 	)
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+
+// 	defer rfGPU.Close()
+// 	defer rfCPU.Close()
+
+// 	// fmt.Println("RF training complete")
+
+// 	// -------------------------------------------------
+// 	// RF benchmarks
+// 	// -------------------------------------------------
+
+// 	for _, rows := range predictRows {
+
+// 		fmt.Printf("RF benchmark: %d rows\n", rows)
+
+// 		if rows > len(X) {
+// 			log.Fatalf(
+// 				"predict rows (%d) exceeds dataset size (%d)",
+// 				rows,
+// 				len(X),
+// 			)
+// 		}
+
+// 		start := len(X) - rows
+
+// 		X_ := X[start:]
+// 		y_ := y[start:]
+
+// 		cfg := config
+// 		cfg.PredictRows = rows
+
+// 		benchmarkResults, err := BenchmarkRFInference(
+// 			rfGPU,
+// 			rfCPU,
+// 			X_,
+// 			y_,
+// 			cfg,
+// 		)
+// 		if err != nil {
+// 			log.Fatal(err)
+// 		}
+
+// 		results = append(results, benchmarkResults...)
+
+// 		// fmt.Printf(
+// 		// 	"RF benchmark complete: %d rows\n",
+// 		// 	rows,
+// 		// )
+// 	}
+
+// 	fmt.Println("All RF benchmarks complete")
+
+// 	fmt.Println("Starting KNN training...")
+
+// 	knnGPU, knnCPU, err := TrainKNN(
+// 		XTrain,
+// 		yTrain,
+// 	)
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+
+// 	defer knnGPU.Close()
+// 	defer knnCPU.Close()
+
+// 	// fmt.Println("KNN training complete")
+
+// 	for _, rows := range predictRows {
+
+// 		fmt.Printf("KNN benchmark: %d rows\n", rows)
+
+// 		if rows > len(X) {
+// 			log.Fatalf(
+// 				"predict rows (%d) exceeds dataset size (%d)",
+// 				rows,
+// 				len(X),
+// 			)
+// 		}
+
+// 		start := len(X) - rows
+
+// 		X_ := X[start:]
+// 		y_ := y[start:]
+
+// 		cfg := config
+// 		cfg.PredictRows = rows
+
+// 		benchmarkResults, err := BenchmarkKNNInference(
+// 			knnGPU,
+// 			knnCPU,
+// 			X_,
+// 			y_,
+// 			cfg,
+// 		)
+// 		if err != nil {
+// 			log.Fatal(err)
+// 		}
+
+// 		results = append(results, benchmarkResults...)
+// 		// fmt.Printf("KNN benchmark complete: %d rows\n", rows)
+// 	}
+// 	fmt.Printf("All KNN benchmark completed\n")
+
+// 	fmt.Println("Starting KMeans training...")
+
+// 	kmeansGPU, kmeansCPU, err := TrainKMeans(
+// 		XTrain,
+// 	)
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+
+// 	defer kmeansGPU.Close()
+// 	defer kmeansCPU.Close()
+
+// 	// fmt.Println("KMeans training complete")
+
+// 	for _, rows := range predictRows {
+// 		fmt.Printf("KMeans benchmark: %d rows\n", rows)
+
+// 		if rows > len(X) {
+// 			log.Fatalf(
+// 				"predict rows (%d) exceeds dataset size (%d)",
+// 				rows,
+// 				len(X),
+// 			)
+// 		}
+
+// 		start := len(X) - rows
+
+// 		X_ := X[start:]
+
+// 		cfg := config
+// 		cfg.PredictRows = rows
+
+// 		benchmarkResults, err := BenchmarkKMeansInference(
+// 			kmeansGPU,
+// 			kmeansCPU,
+// 			X_,
+// 			cfg,
+// 		)
+// 		if err != nil {
+// 			log.Fatal(err)
+// 		}
+
+// 		results = append(results, benchmarkResults...)
+// 		// fmt.Printf("KMeans benchmark complete: %d rows\n", rows)
+// 	}
+// 	fmt.Println("All KMeans benchmarks complete")
+
+// 	timestamp := time.Now().Format("020106150405")
+
+// 	resultsDir := "go/inference_compare/results"
+
+// 	resultsFile := filepath.Join(
+// 		resultsDir,
+// 		fmt.Sprintf("inference_results_%s.csv", timestamp),
+// 	)
+
+// 	if err := WriteResultsCSV(resultsFile, results); err != nil {
+// 		log.Fatal(err)
+// 	}
+
+// 	summaryFile := strings.TrimSuffix(resultsFile, ".csv") + "_summary.csv"
+
+// 	if err := WriteSummaryCSV(resultsFile, summaryFile); err != nil {
+// 		log.Fatal(err)
+// 	}
+
+// 	fmt.Printf("\nResults written to %s\n", resultsFile)
+// 	fmt.Printf("Summary written to %s\n", summaryFile)
+
+// 	comparePythonGoThroughput(summaryFile)
 // }
+
+func main() {
+    comparePythonGoThroughput(
+        "/home/anupam/projects/cuml-go/go/inference_compare/results/inference_results_010926172842_summary.csv",
+    )
+}

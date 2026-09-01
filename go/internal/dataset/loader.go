@@ -7,23 +7,21 @@ import (
 	"strconv"
 )
 
-func parseFeature(value string) (float32, error) {
-	switch value {
-	case "True":
-		return 1.0, nil
-	case "False":
-		return 0.0, nil
-	}
+const labelColumn = "Label"
 
-	f, err := strconv.ParseFloat(value, 32)
-	if err != nil {
-		return 0, err
-	}
-
-	return float32(f), nil
+var featureColumns = []string{
+	"data_rate_bps",
+	"sta_rxrate_score",
+	"wtp_bandwidth_rx",
+	"sta_bandwidth_tx",
+	"sta_txrate",
+	"sta_txrate_score",
+	"snr",
+	"sta_rxrate",
+	"channel_utilization_percent",
 }
 
-func LoadCSV(path string, labelColumn string, maxRows int) ([][]float32, []int, error) {
+func LoadCSV(path string, maxRows int) ([][]float32, []int, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, nil, err
@@ -43,71 +41,88 @@ func LoadCSV(path string, labelColumn string, maxRows int) ([][]float32, []int, 
 
 	header := rows[0]
 
-	labelIdx := -1
-	for i, h := range header {
-		if h == labelColumn {
-			labelIdx = i
-			break
-		}
+	// Find column indexes.
+	columnIndexes := make(map[string]int, len(header))
+
+	for i, column := range header {
+		columnIndexes[column] = i
 	}
 
-	otherLabelIdx := -1
-
-	for i, h := range header {
-		switch {
-		case labelColumn == "is_malicious" && h == "attack_type":
-			otherLabelIdx = i
-		case labelColumn == "attack_type" && h == "is_malicious":
-			otherLabelIdx = i
-		}
+	// Validate required columns.
+	labelIdx, ok := columnIndexes[labelColumn]
+	if !ok {
+		return nil, nil, fmt.Errorf(
+			"label column %q not found",
+			labelColumn,
+		)
 	}
 
-	if labelIdx == -1 {
-		return nil, nil, fmt.Errorf("label column %q not found", labelColumn)
-	}
+	featureIndexes := make([]int, len(featureColumns))
 
-	var X [][]float32
-	var y []int
+	for i, column := range featureColumns {
+		idx, ok := columnIndexes[column]
 
-	for i, row := range rows[1:] {
-
-		if maxRows > 0 && i >= maxRows {
-			break
+		if !ok {
+			return nil, nil, fmt.Errorf(
+				"feature column %q not found",
+				column,
+			)
 		}
 
-		features := make([]float32, 0, len(row)-2)
+		featureIndexes[i] = idx
+	}
 
-		for j, val := range row {
+	// Determine number of rows to load.
+	dataRows := rows[1:]
 
-			if j == labelIdx {
-				switch val {
-				case "True":
-					y = append(y, 1)
-				case "False":
-					y = append(y, 0)
-				default:
-					label, err := strconv.Atoi(val)
-					if err != nil {
-						return nil, nil, err
-					}
-					y = append(y, label)
-				}
-				continue
-			}
+	if maxRows > 0 && maxRows < len(dataRows) {
+		dataRows = dataRows[:maxRows]
+	}
 
-			if j == otherLabelIdx {
-				continue
-			}
+	X := make([][]float32, 0, len(dataRows))
+	y := make([]int, 0, len(dataRows))
 
-			f, err := parseFeature(val)
+	for rowIndex, row := range dataRows {
+
+		if len(row) != len(header) {
+			return nil, nil, fmt.Errorf(
+				"row %d has %d columns, expected %d",
+				rowIndex+2,
+				len(row),
+				len(header),
+			)
+		}
+
+		features := make([]float32, len(featureIndexes))
+
+		for i, columnIndex := range featureIndexes {
+			value, err := strconv.ParseFloat(row[columnIndex], 32)
+
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, fmt.Errorf(
+					"invalid value %q in column %q at row %d: %w",
+					row[columnIndex],
+					featureColumns[i],
+					rowIndex+2,
+					err,
+				)
 			}
 
-			features = append(features, float32(f))
+			features[i] = float32(value)
+		}
+
+		label, err := strconv.Atoi(row[labelIdx])
+		if err != nil {
+			return nil, nil, fmt.Errorf(
+				"invalid label %q at row %d: %w",
+				row[labelIdx],
+				rowIndex+2,
+				err,
+			)
 		}
 
 		X = append(X, features)
+		y = append(y, label)
 	}
 
 	return X, y, nil

@@ -212,11 +212,11 @@ func WriteSummaryCSV(
 	return out.Close()
 }
 
-const pythonSummaryFile = "/home/anupam/projects/cuml-go/go/inference_compare/python_inference_summary.csv"
+const pythonSummaryFile = "/home/anupam/projects/cuml-go/go/inference_compare/python_inference_summary_ogdata.csv"
 
 func comparePythonGoThroughput(goSummaryFile string) {
 
-	const pythonSummaryFile = "/home/anupam/projects/cuml-go/go/inference_compare/python_inference_summary.csv"
+	const pythonSummaryFile = "/home/anupam/projects/cuml-go/go/inference_compare/python_inference_summary_ogdata.csv"
 
 	type rowData struct {
 		model      string
