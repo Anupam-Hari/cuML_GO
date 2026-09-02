@@ -162,12 +162,40 @@ func containsModel(
 	return false
 }
 
+func loadDataset(
+	config Config,
+) ([][]float32, []int, error) {
+
+	switch config.DatasetLoader {
+
+	case "csv":
+		return dataset.LoadCSV(
+			config.DatasetPath,
+			0,
+		)
+
+	case "fake":
+		return dataset.LoadFakeCSV(
+			config.DatasetPath,
+			0,
+		)
+
+	default:
+		return nil, nil, fmt.Errorf(
+			"unsupported dataset loader: %s",
+			config.DatasetLoader,
+		)
+	}
+}
+
 func main() {
 
 	config := Config{
 		ModelPath: "go/inference_compare/models/rf_model.tl",
 
 		DatasetPath: "benchmark/data/processed_network_traffic.csv",
+
+		DatasetLoader: "csv",
 
 		PredictRows: 1000,
 
@@ -202,10 +230,8 @@ func main() {
 		"kmeans",
 	}
 
-	X, y, err := dataset.LoadCSV(
-		config.DatasetPath,
-		0,
-	)
+	X, y, err := loadDataset(config)
+	
 	if err != nil {
 		log.Fatal(err)
 	}

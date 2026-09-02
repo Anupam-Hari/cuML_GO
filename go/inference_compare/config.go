@@ -8,6 +8,8 @@ type Config struct {
 
 	DatasetPath string
 
+	DatasetLoader   string
+
 	// Number of samples to predict
 	PredictRows int
 
