@@ -20,8 +20,8 @@ func TestRandomForest_BackendComparison(t *testing.T) {
 	wd, _ := os.Getwd()
 	t.Log("Working directory:", wd)
 
-	X, y, err := dataset.LoadCSV(
-		"../../benchmark/data/processed_network_traffic.csv",
+	X, y, err := dataset.LoadFakeCSV(
+		"../../benchmark/data/processed_network_traffic_fake.csv",
 		"is_malicious",
 		*maxRows,
 	)

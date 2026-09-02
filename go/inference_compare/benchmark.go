@@ -174,35 +174,12 @@ func benchmarkBackend(
 	cpuAvg float64,
 	err error,
 ) {
-
-	// fmt.Printf(
-	// 	"Benchmark backend: warmup=%d repeats=%d samples=%d\n",
-	// 	warmupRuns,
-	// 	repeats,
-	// 	samples,
-	// )
-
-	//-------------------------------------------------
-	// Warmup
-	//-------------------------------------------------
-
 	for i := 0; i < warmupRuns; i++ {
-
-		// fmt.Printf("Warmup %d/%d\n", i+1, warmupRuns)
-
 		_, err = predict()
 		if err != nil {
 			return
 		}
 	}
-
-	// fmt.Println("Warmup complete")
-
-	//-------------------------------------------------
-	// Metrics
-	//-------------------------------------------------
-
-	// fmt.Println("Creating metrics")
 
 	metrics, err := benchmark.NewMetrics()
 	if err != nil {
@@ -210,40 +187,31 @@ func benchmarkBackend(
 	}
 	defer metrics.Close()
 
-	// fmt.Println("Metrics created")
-
-	//-------------------------------------------------
-	// Benchmark
-	//-------------------------------------------------
-
 	timer := benchmark.Timer{}
-
-	// fmt.Println("Starting metrics")
+	times := make([]float64, 0, repeats)
 
 	metrics.Start()
 
-	// fmt.Println("Starting timer")
-
-	timer.Start()
-
 	for i := 0; i < repeats; i++ {
-
-		// fmt.Printf("Prediction %d/%d\n", i+1, repeats)
+		timer.Start()
 
 		pred, err = predict()
 		if err != nil {
 			metrics.Stop()
 			return
 		}
+
+		times = append(times, timer.Stop())
 	}
-
-	// fmt.Println("All predictions complete")
-
-	avgTimeMS = timer.Stop() / float64(repeats)
 
 	metrics.Stop()
 
-	// fmt.Println("Metrics stopped")
+	var totalTimeMS float64
+	for _, t := range times {
+		totalTimeMS += t
+	}
+
+	avgTimeMS = totalTimeMS / float64(len(times))
 
 	throughput = calculateThroughput(
 		samples,

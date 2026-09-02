@@ -177,6 +177,7 @@ func loadDataset(
 	case "fake":
 		return dataset.LoadFakeCSV(
 			config.DatasetPath,
+			"is_malicious",
 			0,
 		)
 
@@ -193,9 +194,9 @@ func main() {
 	config := Config{
 		ModelPath: "go/inference_compare/models/rf_model.tl",
 
-		DatasetPath: "benchmark/data/processed_network_traffic.csv",
+		DatasetPath: "benchmark/data/processed_network_traffic_fake.csv",
 
-		DatasetLoader: "csv",
+		DatasetLoader: "fake",
 
 		PredictRows: 1000,
 
@@ -231,7 +232,7 @@ func main() {
 	}
 
 	X, y, err := loadDataset(config)
-	
+
 	if err != nil {
 		log.Fatal(err)
 	}

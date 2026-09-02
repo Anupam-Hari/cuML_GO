@@ -5,6 +5,7 @@
 #include <cuml/ensemble/randomforest.hpp>
 #include <raft/core/handle.hpp>
 #include <cmath>
+#include <chrono>
 #include <rmm/cuda_stream_pool.hpp>
 #include <nvforest/treelite_importer.hpp>
 #include <nvforest/forest_model.hpp>

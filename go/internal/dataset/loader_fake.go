@@ -7,6 +7,18 @@ import (
 	"strconv"
 )
 
+var fakeFeatureColumns = []string{
+	"log_duration",
+	"log_orig_bytes",
+	"log_resp_bytes",
+	"log_missed_bytes",
+	"log_orig_pkts",
+	"log_orig_ip_bytes",
+	"log_resp_pkts",
+	"log_resp_ip_bytes",
+	"id.orig_p",
+}
+
 func parseFeature(value string) (float32, error) {
 	switch value {
 	case "True":
@@ -43,27 +55,34 @@ func LoadFakeCSV(path string, labelColumn string, maxRows int) ([][]float32, []i
 
 	header := rows[0]
 
-	labelIdx := -1
+	// Build column-name -> index mapping.
+	columnIdx := make(map[string]int, len(header))
 	for i, h := range header {
-		if h == labelColumn {
-			labelIdx = i
-			break
-		}
+		columnIdx[h] = i
 	}
 
-	otherLabelIdx := -1
+	// Verify all required fake features exist.
+	featureIdx := make([]int, len(fakeFeatureColumns))
 
-	for i, h := range header {
-		switch {
-		case labelColumn == "is_malicious" && h == "attack_type":
-			otherLabelIdx = i
-		case labelColumn == "attack_type" && h == "is_malicious":
-			otherLabelIdx = i
+	for i, feature := range fakeFeatureColumns {
+		idx, ok := columnIdx[feature]
+		if !ok {
+			return nil, nil, fmt.Errorf(
+				"feature column %q not found",
+				feature,
+			)
 		}
+
+		featureIdx[i] = idx
 	}
 
-	if labelIdx == -1 {
-		return nil, nil, fmt.Errorf("label column %q not found", labelColumn)
+	// Find target column.
+	labelIdx, ok := columnIdx[labelColumn]
+	if !ok {
+		return nil, nil, fmt.Errorf(
+			"label column %q not found",
+			labelColumn,
+		)
 	}
 
 	var X [][]float32
@@ -75,36 +94,58 @@ func LoadFakeCSV(path string, labelColumn string, maxRows int) ([][]float32, []i
 			break
 		}
 
-		features := make([]float32, 0, len(row)-2)
+		// Make exactly 9 features, in exactly the same order
+		// as fakeFeatureColumns.
+		features := make([]float32, len(featureIdx))
 
-		for j, val := range row {
-
-			if j == labelIdx {
-				switch val {
-				case "True":
-					y = append(y, 1)
-				case "False":
-					y = append(y, 0)
-				default:
-					label, err := strconv.Atoi(val)
-					if err != nil {
-						return nil, nil, err
-					}
-					y = append(y, label)
-				}
-				continue
+		for j, idx := range featureIdx {
+			if idx >= len(row) {
+				return nil, nil, fmt.Errorf(
+					"row %d is missing column %q",
+					i+1,
+					fakeFeatureColumns[j],
+				)
 			}
 
-			if j == otherLabelIdx {
-				continue
-			}
-
-			f, err := parseFeature(val)
+			f, err := parseFeature(row[idx])
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, fmt.Errorf(
+					"row %d, feature %q: %w",
+					i+1,
+					fakeFeatureColumns[j],
+					err,
+				)
 			}
 
-			features = append(features, float32(f))
+			features[j] = f
+		}
+
+		// Parse target.
+		if labelIdx >= len(row) {
+			return nil, nil, fmt.Errorf(
+				"row %d is missing label column %q",
+				i+1,
+				labelColumn,
+			)
+		}
+
+		switch row[labelIdx] {
+		case "True":
+			y = append(y, 1)
+		case "False":
+			y = append(y, 0)
+		default:
+			label, err := strconv.Atoi(row[labelIdx])
+			if err != nil {
+				return nil, nil, fmt.Errorf(
+					"row %d, label %q: %w",
+					i+1,
+					labelColumn,
+					err,
+				)
+			}
+
+			y = append(y, label)
 		}
 
 		X = append(X, features)
