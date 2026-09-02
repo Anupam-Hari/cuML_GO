@@ -168,7 +168,7 @@ func loadDataset(
 
 	switch config.DatasetLoader {
 
-	case "csv":
+	case "real":
 		return dataset.LoadCSV(
 			config.DatasetPath,
 			0,
@@ -194,15 +194,15 @@ func main() {
 	config := Config{
 		ModelPath: "go/inference_compare/models/rf_model.tl",
 
-		DatasetPath: "benchmark/data/processed_network_traffic_fake.csv",
+		DatasetPath: "benchmark/data/processed_network_traffic_real.csv",
 
-		DatasetLoader: "fake",
+		DatasetLoader: "real",
 
 		PredictRows: 1000,
 
-		Repeats: 1,
+		Repeats: 5,
 
-		WarmupRuns: 0,
+		WarmupRuns: 2,
 
 		CPUCores: 16,
 

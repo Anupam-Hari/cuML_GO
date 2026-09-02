@@ -32,8 +32,8 @@ func TestRandomForest_BackendComparison(t *testing.T) {
 	// ---------------- GPU ----------------
 
 	rfGPU, err := New(
-		WithEstimators(100),
-		WithMaxDepth(16),
+		WithEstimators(50),
+		WithMaxDepth(20),
 		WithMaxFeatures(1.0),
 		WithMaxLeaves(-1),
 		WithMaxSamples(1.0),
@@ -52,6 +52,13 @@ func TestRandomForest_BackendComparison(t *testing.T) {
 
 	gpuTrainTime := time.Since(gpuTrainStart)
 
+	for i := 0; i < 2; i++ {
+		_, err := rfGPU.Predict(X)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	gpuPredictStart := time.Now()
 
 	predGPU, err := rfGPU.Predict(X)
@@ -66,8 +73,8 @@ func TestRandomForest_BackendComparison(t *testing.T) {
 	// ---------------- CPU ----------------
 
 	rfCPU, err := New(
-		WithEstimators(100),
-		WithMaxDepth(16),
+		WithEstimators(50),
+		WithMaxDepth(20),
 		WithMaxFeatures(1.0),
 		WithMaxLeaves(-1),
 		WithMaxSamples(1.0),

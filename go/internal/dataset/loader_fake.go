@@ -3,6 +3,7 @@ package dataset
 import (
 	"encoding/csv"
 	"fmt"
+	"math/rand"
 	"os"
 	"strconv"
 )
@@ -55,6 +56,13 @@ func LoadFakeCSV(path string, labelColumn string, maxRows int) ([][]float32, []i
 
 	header := rows[0]
 
+	dataRows := rows[1:]
+
+	rng := rand.New(rand.NewSource(42))
+	rng.Shuffle(len(dataRows), func(i, j int) {
+		dataRows[i], dataRows[j] = dataRows[j], dataRows[i]
+	})
+
 	// Build column-name -> index mapping.
 	columnIdx := make(map[string]int, len(header))
 	for i, h := range header {
@@ -88,7 +96,7 @@ func LoadFakeCSV(path string, labelColumn string, maxRows int) ([][]float32, []i
 	var X [][]float32
 	var y []int
 
-	for i, row := range rows[1:] {
+	for i, row := range dataRows {
 
 		if maxRows > 0 && i >= maxRows {
 			break
