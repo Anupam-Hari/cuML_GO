@@ -3,11 +3,9 @@ package randomforest
 import (
 	"fmt"
 	"unsafe"
-	// "time"
 
 	"github.com/Anupam-Hari/cuml-go/go/internal/capi"
 	"github.com/Anupam-Hari/cuml-go/go/internal/matrix"
-	"github.com/Anupam-Hari/cuml-go/go/internal/benchmark"
 )
 
 type RandomForest struct {
@@ -192,11 +190,7 @@ func (rf *RandomForest) Predict(
 		return nil, fmt.Errorf("random forest is nil")
 	}
 
-	timer := benchmark.Timer{}
-
-	timer.Start()
 	dense, err := matrix.From2D(X)
-	matrixTime := timer.Stop()
 
 	if err != nil {
 		return nil, err
@@ -209,8 +203,6 @@ func (rf *RandomForest) Predict(
 			return nil, fmt.Errorf("random forest GPU is closed")
 		}
 
-		timer.Start()
-
 		predictions, err := capi.RandomForestPredict(
 			rf.gpu,
 			dense.Data,
@@ -219,19 +211,10 @@ func (rf *RandomForest) Predict(
 			BackendGPU,
 		)
 
-		capiTime := timer.Stop()
-
 		if err != nil {
 			return nil, err
 		}
-
-		timer.Start()
 		result := matrix.FromCInt32(predictions)
-		conversionTime := timer.Stop()
-
-		fmt.Printf("RF matrix.From2D:       %.3f ms\n", matrixTime)
-		fmt.Printf("RF Go -> CAPI Predict:  %.3f ms\n", capiTime)
-		fmt.Printf("RF matrix.FromCInt32:   %.3f ms\n", conversionTime)
 
 		return result, nil
 
@@ -240,8 +223,6 @@ func (rf *RandomForest) Predict(
 			return nil, fmt.Errorf("random forest CPU is closed")
 		}
 
-		timer.Start()
-
 		predictions, err := capi.RFCPUPredict(
 			rf.cpu,
 			dense.Data,
@@ -249,19 +230,11 @@ func (rf *RandomForest) Predict(
 			dense.Cols,
 		)
 
-		capiTime := timer.Stop()
-
 		if err != nil {
 			return nil, err
 		}
 
-		timer.Start()
 		result := matrix.FromCInt32(predictions)
-		conversionTime := timer.Stop()
-
-		fmt.Printf("RF matrix.From2D:       %.3f ms\n", matrixTime)
-		fmt.Printf("RF Go -> CAPI Predict:  %.3f ms\n", capiTime)
-		fmt.Printf("RF matrix.FromCInt32:   %.3f ms\n", conversionTime)
 
 		return result, nil
 

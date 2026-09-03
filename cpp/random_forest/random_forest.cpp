@@ -203,8 +203,6 @@ int rf_predict(
     float* d_X = nullptr;
     float* d_predictions = nullptr;
 
-    auto totalStart = std::chrono::steady_clock::now();
-
     try
     {
         auto* forest =
@@ -219,34 +217,17 @@ int rf_predict(
         std::vector<float> h_predictions(rows * handle->n_classes);
 
         if (backend == 1) {
-            auto start = std::chrono::steady_clock::now();
-
             d_X = static_cast<float*>(
                 cuda_utils::Malloc(rows * cols * sizeof(float)));
-
-            auto dXAllocEnd = std::chrono::steady_clock::now();
 
             d_predictions = static_cast<float*>(
                 cuda_utils::Malloc(
                     rows * handle->n_classes * sizeof(float)));
 
-            auto dPredAllocEnd = std::chrono::steady_clock::now();
-
             cuda_utils::CopyHostToDevice(
                 d_X,
                 X,
                 rows * cols * sizeof(float));
-
-            auto h2dEnd = std::chrono::steady_clock::now();
-
-            cudaEvent_t backendStart, backendStop;
-            cudaEventCreate(&backendStart);
-            cudaEventCreate(&backendStop);
-
-            cudaEventRecord(
-                backendStart,
-                handle->handle.get_stream().value()
-            );
 
             forest->value().predict(
                 raft_proto::handle_t(handle->handle),
@@ -257,96 +238,19 @@ int rf_predict(
                 raft_proto::device_type::gpu
             );
 
-            cudaEventRecord(
-                backendStop,
-                handle->handle.get_stream().value()
-            );
-
-            cudaEventSynchronize(backendStop);
-
-            float backendTimeMS = 0.0f;
-
-            cudaEventElapsedTime(
-                &backendTimeMS,
-                backendStart,
-                backendStop
-            );
-
-            cudaEventDestroy(backendStart);
-            cudaEventDestroy(backendStop);
-
-            auto backendEnd = std::chrono::steady_clock::now();
-
             cuda_utils::CopyDeviceToHost(
                 h_predictions.data(),
                 d_predictions,
                 rows * handle->n_classes * sizeof(float));
 
-            auto d2hEnd = std::chrono::steady_clock::now();
-
             cuda_utils::Free(d_X);
-            auto dXFreeEnd = std::chrono::steady_clock::now();
-
             cuda_utils::Free(d_predictions);
-            auto dPredFreeEnd = std::chrono::steady_clock::now();
 
             d_X = nullptr;
             d_predictions = nullptr;
 
-            double dXAllocTime =
-                std::chrono::duration<double, std::milli>(
-                    dXAllocEnd - start
-                ).count();
-
-            double dPredAllocTime =
-                std::chrono::duration<double, std::milli>(
-                    dPredAllocEnd - dXAllocEnd
-                ).count();
-
-            double h2dTime =
-                std::chrono::duration<double, std::milli>(
-                    h2dEnd - dPredAllocEnd
-                ).count();
-
-            double d2hTime =
-                std::chrono::duration<double, std::milli>(
-                    d2hEnd - backendEnd
-                ).count();
-
-            double dXFreeTime =
-                std::chrono::duration<double, std::milli>(
-                    dXFreeEnd - d2hEnd
-                ).count();
-
-            double dPredFreeTime =
-                std::chrono::duration<double, std::milli>(
-                    dPredFreeEnd - dXFreeEnd
-                ).count();
-
-            std::cout << "RF GPU d_X allocation: "
-                      << dXAllocTime << " ms" << std::endl;
-
-            std::cout << "RF GPU d_predictions allocation: "
-                      << dPredAllocTime << " ms" << std::endl;
-
-            std::cout << "RF GPU H2D copy: "
-                      << h2dTime << " ms" << std::endl;
-
-            std::cout << "RF GPU backend predict: "
-                      << backendTimeMS << " ms" << std::endl;
-
-            std::cout << "RF GPU D2H copy: "
-                      << d2hTime << " ms" << std::endl;
-
-            std::cout << "RF GPU d_X free: "
-                      << dXFreeTime << " ms" << std::endl;
-
-            std::cout << "RF GPU d_predictions free: "
-                      << dPredFreeTime << " ms" << std::endl;
         }
         else {
-            auto backendStart = std::chrono::steady_clock::now();
-
             forest->value().predict(
                 raft_proto::handle_t(handle->handle),
                 h_predictions.data(),
@@ -356,20 +260,7 @@ int rf_predict(
                 raft_proto::device_type::cpu
             );
 
-            auto backendEnd = std::chrono::steady_clock::now();
-
-            double backendTimeMS =
-                std::chrono::duration<double, std::milli>(
-                    backendEnd - backendStart
-                ).count();
-
-            std::cout << "RF CPU backend predict: "
-                      << backendTimeMS
-                      << " ms"
-                      << std::endl;
         }
-
-        auto postProcessStart = std::chrono::steady_clock::now();
 
         for (int r = 0; r < rows; ++r) {
             int best = 0;
@@ -390,30 +281,6 @@ int rf_predict(
 
             predictions[r] = best;
         }
-
-        auto postProcessEnd = std::chrono::steady_clock::now();
-
-        double postProcessTimeMS =
-            std::chrono::duration<double, std::milli>(
-                postProcessEnd - postProcessStart
-            ).count();
-
-        auto totalEnd = std::chrono::steady_clock::now();
-
-        double totalTimeMS =
-            std::chrono::duration<double, std::milli>(
-                totalEnd - totalStart
-            ).count();
-
-        std::cout << "RF C++ post-process: "
-                  << postProcessTimeMS
-                  << " ms"
-                  << std::endl;
-
-        std::cout << "RF C++ rf_predict total: "
-                  << totalTimeMS
-                  << " ms"
-                  << std::endl;
 
         return 0;
     }

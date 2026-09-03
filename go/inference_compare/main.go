@@ -194,9 +194,9 @@ func main() {
 	config := Config{
 		ModelPath: "go/inference_compare/models/rf_model.tl",
 
-		DatasetPath: "benchmark/data/processed_network_traffic_real.csv",
+		DatasetPath: "benchmark/data/processed_network_traffic_fake.csv",
 
-		DatasetLoader: "real",
+		DatasetLoader: "fake",
 
 		PredictRows: 1000,
 
@@ -219,16 +219,13 @@ func main() {
 		70000,
 	}
 
-	// -------------------------------------------------
 	// SELECT MODELS TO RUN
-	// -------------------------------------------------
 	//
 	// Comment/uncomment models as needed.
-	//
 	modelsToRun := []string{
 		"random_forest",
-		"knn",
-		"kmeans",
+		// "knn",
+		// "kmeans",
 	}
 
 	X, y, err := loadDataset(config)

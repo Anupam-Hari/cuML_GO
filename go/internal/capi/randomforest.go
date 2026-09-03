@@ -11,7 +11,6 @@ import "C"
 import "unsafe"
 import (
 	"fmt"
-	"time"
 )
 
 const (
@@ -93,11 +92,7 @@ func RandomForestPredict(
 	backend int,
 ) ([]int32, error) {
 
-	start := time.Now()
 	predictions := make([]int32, rows)
-	allocationTime := time.Since(start)
-
-	start = time.Now()
 
 	status := C.rf_predict(
 		h.ptr,
@@ -107,14 +102,6 @@ func RandomForestPredict(
 		(*C.int)(&predictions[0]),
 		C.int(backend),
 	)
-
-	capiCallTime := time.Since(start)
-
-	fmt.Printf("RF CAPI allocation: %.3f ms\n",
-		float64(allocationTime.Microseconds())/1000.0)
-
-	fmt.Printf("RF CAPI -> C: %.3f ms\n",
-		float64(capiCallTime.Microseconds())/1000.0)
 
 	if status != 0 {
 		return nil, fmt.Errorf("rf_predict failed")
