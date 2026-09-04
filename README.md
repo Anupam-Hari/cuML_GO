@@ -9,6 +9,58 @@ Currently implemented models:
 - K-Means Clustering
 
 ---
+## Build Requirements
+
+* Ubuntu 22.04+
+* NVIDIA GPU with compatible NVIDIA driver
+* Go **1.26.6**
+* CMake **4.4.0**
+* GCC/G++ **14.3.0**
+* CUDA **12.9**
+* NVIDIA RAPIDS/cuML **26.06.00**
+* mlpack **4.8.1**, source commit: c5ebb4655737a1fc17a5071e539d4e1d17f5b740
+* Treelite **4.7.0**
+* RAFT **26.06.00**
+* RMM **26.06.00**
+* Armadillo/OpenBLAS/OpenMP as native dependencies
+
+### Setup
+
+```bash
+# Create the RAPIDS environment
+conda env create -f environment.yml
+conda activate rapids-gcc14
+
+# Verify the toolchain
+go version
+cmake --version
+gcc --version
+g++ --version
+nvcc --version
+pkg-config --modversion mlpack
+
+# Configure
+./configure.sh
+
+# Build
+./build.sh
+
+# Run tests
+go test ./...
+```
+
+### Runtime
+
+A production deployment requires:
+
+* Prebuilt Go application
+* `libcumlgo.so`
+* Saved model files
+* NVIDIA driver
+* CUDA/RAPIDS runtime libraries
+* mlpack runtime libraries for CPU inference
+
+Python is **not required at runtime**.
 
 # Architecture
 
@@ -454,27 +506,6 @@ which is used by the Go cgo wrappers.
 
 ---
 
-# Running C++ Benchmark
-
-From project root
-
-```bash
-./build/test_cuml
-```
-
-Outputs benchmark timings for
-
-- Random Forest
-- KNN
-- KMeans
-
-Results are written to
-
-```
-benchmark/results/
-```
-
----
 
 # Running Go Tests
 
@@ -500,51 +531,6 @@ Limit dataset size
 
 ```bash
 go test -v ./go/random_forest -args -rows=5000
-```
-
----
-
-# Running Go Benchmark
-
-Execute
-
-```bash
-go run ./go
-```
-
-Run on subset
-
-```bash
-go run ./go -rows=5000
-```
-
-Results are automatically written to
-
-```
-benchmark/results/
-```
-
-Example output
-
-```
-go_benchmark_210726155230.csv
-```
-
----
-
-# CSV Output
-
-Generated CSV contains
-
-```
-Model
-TrainRows
-TestRows
-TrainTime(ms)
-PredictionThroughput(ops)
-TotalTime(ms)
-GPUAvg
-GPUPeak
 ```
 
 ---
@@ -626,6 +612,70 @@ go/new_model/
 No other parts of the project need modification.
 
 ---
+
+## Porting to a New Machine
+
+`cuml-go` consists of a Go layer, a native C++/CUDA shared library, and model files.
+
+### Build Machine
+
+A new build machine must provide the same native toolchain and library versions:
+
+* Ubuntu 22.04+
+* Go **1.26.6**
+* CMake **4.4.0**
+* GCC/G++ **14.3.0**
+* CUDA **12.9**
+* RAPIDS/cuML **26.06.00**
+* Treelite **4.7.0**
+* RAFT **26.06.00**
+* RMM **26.06.00**
+* mlpack **4.8.1**
+* Required native dependencies such as Armadillo, OpenBLAS, and OpenMP
+
+The RAPIDS dependencies can be recreated using `environment.yml`.
+
+**mlpack note:** mlpack 4.8.1 is currently installed from source into the Conda environment rather than tracked by Conda. It is a **build-time dependency** for the CPU backend. The exact source commit used is:
+
+```text
+c5ebb4655737a1fc17a5071e539d4e1d17f5b740
+```
+
+For reproducible builds on a new machine, mlpack should be installed from this pinned source version (or vendored as a project dependency).
+
+### Production Machine
+
+A production machine running a **prebuilt** application does not need the Go compiler, CMake, GCC/G++, or mlpack source/headers.
+
+Deploy:
+
+```text
+Go application
+libcumlgo.so
+model files
+model metadata (.meta)
+```
+
+The target machine must provide the required native runtime libraries and, for GPU inference, a compatible NVIDIA driver/GPU and CUDA/RAPIDS runtime.
+
+**Python is not required. ONNX Runtime is not required.**
+
+### Key Principle
+
+```text
+Build machine
+    ↓
+Go + C++/CUDA + RAPIDS + mlpack
+    ↓
+libcumlgo.so + Go executable
+    ↓
+Production machine
+    ↓
+Go executable + libcumlgo.so + model files + runtime libraries
+```
+
+mlpack is compiled into the native library through its C++ headers; it is not a separate runtime library that needs to be installed on the production machine.
+
 
 # Design Goals
 
