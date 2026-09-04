@@ -22,7 +22,13 @@ type Config struct {
 	// Number of CPU threads to use (OpenMP)
 	// 0 = use OpenMP default
 	CPUCores int
+	CPUBackend string
 
 	// Sampling interval for CPU/GPU utilization
 	SampleInterval time.Duration
 }
+
+const (
+	CPUBackendMLPack = "mlpack"
+	CPUBackendCuML   = "cuml"
+)

@@ -67,9 +67,11 @@ RFHandle* rf_create(
 
 void rf_set_cpu_threads(int threads)
 {
-    if (threads > 0) {
-        omp_set_num_threads(threads);
-    }
+    if (threads <= 0)
+        return;
+
+    omp_set_dynamic(0);
+    omp_set_num_threads(threads);
 }
 
 int rf_get_cpu_threads()

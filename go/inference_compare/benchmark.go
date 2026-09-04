@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math"
+	// "runtime"
 
 	benchmark "github.com/Anupam-Hari/cuml-go/go/internal/benchmark"
 	knn "github.com/Anupam-Hari/cuml-go/go/knn"
@@ -174,6 +175,7 @@ func benchmarkBackend(
 	cpuAvg float64,
 	err error,
 ) {
+	// Warmups are completely outside measurement.
 	for i := 0; i < warmupRuns; i++ {
 		_, err = predict()
 		if err != nil {
@@ -190,6 +192,8 @@ func benchmarkBackend(
 	timer := benchmark.Timer{}
 	times := make([]float64, 0, repeats)
 
+	// CPU measurement covers the entire repeat window.
+	// fmt.Println("goroutines:", runtime.NumGoroutine())
 	metrics.Start()
 
 	for i := 0; i < repeats; i++ {
@@ -205,6 +209,7 @@ func benchmarkBackend(
 	}
 
 	metrics.Stop()
+	// fmt.Println("goroutines:", runtime.NumGoroutine())
 
 	var totalTimeMS float64
 	for _, t := range times {
@@ -311,14 +316,36 @@ func BenchmarkRFInference(
 	// CPU
 	//-------------------------------------------------
 
+	var cpuPredict func() ([]int, error)
+
+	switch config.CPUBackend {
+
+	case CPUBackendMLPack:
+		cpuPredict = func() ([]int, error) {
+			return cpuModel.Predict(X)
+		}
+
+	case CPUBackendCuML:
+		cpuPredict = func() ([]int, error) {
+			return gpuModel.PredictBackend(
+				X,
+				randomforest.BackendCPU,
+			)
+		}
+
+	default:
+		return nil, fmt.Errorf(
+			"invalid CPU backend: %d",
+			config.CPUBackend,
+		)
+	}
+
 	cpuPred,
 		cpuTime,
 		cpuThroughput,
 		cpuCPUAvg,
 		err := benchmarkBackend(
-			func() ([]int, error) {
-				return cpuModel.Predict(X)
-			},
+			cpuPredict,
 			len(X),
 			config.Repeats,
 			config.WarmupRuns,
@@ -358,9 +385,7 @@ func BenchmarkRFInference(
 	}, nil
 }
 
-//-------------------------------------------------
 // KNN
-//-------------------------------------------------
 
 func BenchmarkKNNInference(
 	gpuModel *knn.KNN,
@@ -444,9 +469,7 @@ func BenchmarkKNNInference(
 	}, nil
 }
 
-//-------------------------------------------------
 // KMeans
-//-------------------------------------------------
 
 func BenchmarkKMeansInference(
 	gpuModel *kmeans.KMeans,

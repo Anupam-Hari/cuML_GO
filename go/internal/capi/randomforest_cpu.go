@@ -42,6 +42,17 @@ func RFCPUCreate(
 	}, nil
 }
 
+func SetCPUThreadsCPU(h *RFCPUHandle, threads int) {
+    if h == nil || h.ptr == nil || threads <= 0 {
+        return
+    }
+
+    C.rf_set_cpu_threads_cpu(
+        h.ptr,
+        C.int(threads),
+    )
+}
+
 func RFCPUFit(
 	h *RFCPUHandle,
 	data []float32,

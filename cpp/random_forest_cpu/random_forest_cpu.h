@@ -18,6 +18,8 @@ RFCPUHandle* rf_cpu_create(
 
 void rf_cpu_destroy(RFCPUHandle* handle);
 
+void rf_set_cpu_threads_cpu(RFCPUHandle* handle, int threads);
+
 /* Training */
 
 int rf_cpu_fit(

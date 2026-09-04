@@ -16,8 +16,6 @@ add_library(cumlgo SHARED
     cpp/random_forest_cpu/random_forest_cpu.cpp
     cpp/kmeans/kmeans.cpp
     cpp/kmeans_cpu/kmeans_cpu.cpp
-    cpp/knn/knn.cpp
-    cpp/knn_cpu/knn_cpu.cpp
     cpp/common/cuda_utils.cpp
 )
 
@@ -32,7 +30,6 @@ target_link_libraries(cumlgo PRIVATE
     ${BLAS_LIBRARIES}
     ${LAPACK_LIBRARIES}
     OpenMP::OpenMP_CXX
-    /home/anupam/opt/onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so
 )
 
 target_compile_definitions(cumlgo PRIVATE

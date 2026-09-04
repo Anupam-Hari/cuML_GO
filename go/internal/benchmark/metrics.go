@@ -37,15 +37,3 @@ func (m *Metrics) Close() {
 func (m *Metrics) CPUAverage() float64 {
 	return m.cpu.Average()
 }
-
-func (m *Metrics) CPUPeak() float64 {
-	return m.cpu.Peak()
-}
-
-func (m *Metrics) CPUMemoryAverage() float64 {
-	return m.cpu.MemoryAverage()
-}
-
-func (m *Metrics) CPUMemoryPeak() float64 {
-	return m.cpu.MemoryPeak()
-}

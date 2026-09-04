@@ -1,8 +1,10 @@
 #include "random_forest_cpu.h"
 
 #include <mlpack.hpp>
+#include <omp.h>
 
 #include <cstdint>
+#include <cstdio>
 #include <iostream>
 #include <memory>
 
@@ -18,6 +20,7 @@ struct RFCPUHandle {
 
     int n_classes;
     int n_features;
+    int cpu_threads;
 };
 
 
@@ -41,6 +44,7 @@ RFCPUHandle* rf_cpu_create(
 
         handle->n_classes = 0;
         handle->n_features = 0;
+        handle->cpu_threads = 1;
 
         return handle;
 
@@ -64,6 +68,14 @@ void rf_cpu_destroy(
     delete handle;
 }
 
+void rf_set_cpu_threads_cpu(RFCPUHandle* handle, int threads)
+{
+    if (!handle || threads <= 0) {
+        return;
+    }
+
+    handle->cpu_threads = threads;
+}
 
 int rf_cpu_fit(
     RFCPUHandle* handle,
@@ -182,6 +194,14 @@ int rf_cpu_predict(
                     );
             }
         }
+
+        // printf(
+        //     "[RF DEBUG] BEFORE Classify: omp_max=%d\n",
+        //     omp_get_max_threads()
+        // );
+
+        omp_set_dynamic(0);
+        omp_set_num_threads(handle->cpu_threads);
 
         arma::Row<size_t> output;
 

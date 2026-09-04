@@ -194,17 +194,19 @@ func main() {
 	config := Config{
 		ModelPath: "go/inference_compare/models/rf_model.tl",
 
-		DatasetPath: "benchmark/data/processed_network_traffic_fake.csv",
+		DatasetPath: "benchmark/data/processed_network_traffic_real.csv",
 
-		DatasetLoader: "fake",
+		DatasetLoader: "real",
 
 		PredictRows: 1000,
 
-		Repeats: 5,
+		Repeats: 100,
 
 		WarmupRuns: 2,
 
-		CPUCores: 16,
+		CPUCores: 32,
+
+		CPUBackend: CPUBackendMLPack, //CPUBackendMLPack, CPUBackendCuML
 
 		SampleInterval: 20 * time.Millisecond,
 	}
@@ -212,11 +214,21 @@ func main() {
 	const trainingRows = 500_000
 
 	predictRows := []int{
+		// 10,
+		// 30,
+		// 50,
+		// 70,
+		// 100,
+		// 150,
+		// 200,
 		1000,
-		10000,
-		30000,
-		50000,
-		70000,
+		// 3000,
+		// 5000,
+		// 7000,
+		// 10000,
+		// 30000,
+		// 50000,
+		// 70000,
 	}
 
 	// SELECT MODELS TO RUN
@@ -232,10 +244,6 @@ func main() {
 
 	if err != nil {
 		log.Fatal(err)
-	}
-
-	if config.CPUCores > 0 {
-		randomforest.SetCPUThreads(config.CPUCores)
 	}
 
 	var results []BenchmarkResult
@@ -261,6 +269,13 @@ func main() {
 
 		defer rfGPU.Close()
 		defer rfCPU.Close()
+
+	if config.CPUCores > 0 {
+		rfCPU.SetCPUThreads(config.CPUCores)
+	}
+
+	threads := randomforest.GetCPUThreads()
+	fmt.Println("CPU threads:", threads)
 
 		for _, rows := range predictRows {
 
@@ -432,8 +447,9 @@ func main() {
 	resultsFile := filepath.Join(
 		resultsDir,
 		fmt.Sprintf(
-			"inference_results_%s.csv",
+			"inference_results_%s_%dCores.csv",
 			timestamp,
+			config.CPUCores,
 		),
 	)
 
@@ -456,17 +472,17 @@ func main() {
 		log.Fatal(err)
 	}
 
-	fmt.Printf(
-		"\nResults written to %s\n",
-		resultsFile,
-	)
+	// fmt.Printf(
+	// 	"\nResults written to %s\n",
+	// 	resultsFile,
+	// )
 
 	fmt.Printf(
 		"Summary written to %s\n",
 		summaryFile,
 	)
 
-	comparePythonGoThroughput(summaryFile)
+	//comparePythonGoThroughput(summaryFile)
 }
 
 // func main() {

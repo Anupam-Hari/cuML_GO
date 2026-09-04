@@ -183,6 +183,39 @@ func (rf *RandomForest) Fit(
 	}
 }
 
+func (rf *RandomForest) PredictBackend(
+	X [][]float32,
+	backend int,
+) ([]int, error) {
+
+	if rf == nil {
+		return nil, fmt.Errorf("random forest is nil")
+	}
+
+	if rf.gpu == nil {
+		return nil, fmt.Errorf("random forest cuML handle is closed")
+	}
+
+	dense, err := matrix.From2D(X)
+	if err != nil {
+		return nil, err
+	}
+
+	predictions, err := capi.RandomForestPredict(
+		rf.gpu,
+		dense.Data,
+		dense.Rows,
+		dense.Cols,
+		backend,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return matrix.FromCInt32(predictions), nil
+}
+
 func (rf *RandomForest) Predict(
 	X [][]float32,
 ) ([]int, error) {
@@ -234,9 +267,7 @@ func (rf *RandomForest) Predict(
 			return nil, err
 		}
 
-		result := matrix.FromCInt32(predictions)
-
-		return result, nil
+		return matrix.FromCInt32(predictions), nil
 
 	default:
 		return nil, fmt.Errorf(
@@ -298,8 +329,9 @@ func Load(filename string) (*RandomForest, error) {
 	}, nil
 }
 
-func SetCPUThreads(threads int) {
+func (rf *RandomForest) SetCPUThreads(threads int) {
 	capi.SetCPUThreads(threads)
+	capi.SetCPUThreadsCPU(rf.cpu, threads)
 }
 
 func GetCPUThreads() int {
