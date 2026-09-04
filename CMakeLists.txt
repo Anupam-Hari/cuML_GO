@@ -16,6 +16,8 @@ add_library(cumlgo SHARED
     cpp/random_forest_cpu/random_forest_cpu.cpp
     cpp/kmeans/kmeans.cpp
     cpp/kmeans_cpu/kmeans_cpu.cpp
+    cpp/knn/knn.cpp
+    cpp/knn_cpu/knn_cpu.cpp
     cpp/common/cuda_utils.cpp
 )
 

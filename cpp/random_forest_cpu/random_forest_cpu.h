@@ -41,6 +41,15 @@ int rf_cpu_predict(
     int* predictions
 );
 
+int rf_cpu_save(
+    RFCPUHandle* handle,
+    const char* filename
+);
+
+RFCPUHandle* rf_cpu_load(
+    const char* filename
+);
+
 #ifdef __cplusplus
 }
 #endif

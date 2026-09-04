@@ -20,16 +20,17 @@ func TestRandomForest_BackendComparison(t *testing.T) {
 	wd, _ := os.Getwd()
 	t.Log("Working directory:", wd)
 
-	X, y, err := dataset.LoadFakeCSV(
-		"../../benchmark/data/processed_network_traffic_fake.csv",
-		"is_malicious",
+	X, y, err := dataset.LoadCSV(
+		"../../benchmark/data/processed_network_traffic_real.csv",
 		*maxRows,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// ---------------- GPU ----------------
+	// ============================================================
+	// GPU
+	// ============================================================
 
 	rfGPU, err := New(
 		WithEstimators(50),
@@ -42,16 +43,38 @@ func TestRandomForest_BackendComparison(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer rfGPU.Close()
 
 	gpuTrainStart := time.Now()
 
 	if err := rfGPU.Fit(X, y); err != nil {
+		rfGPU.Close()
 		t.Fatal(err)
 	}
 
 	gpuTrainTime := time.Since(gpuTrainStart)
 
+	// Save GPU model.
+	gpuModelFile := "../models/random_forest_gpu.model"
+
+	if err := rfGPU.Save(gpuModelFile); err != nil {
+		rfGPU.Close()
+		t.Fatal(err)
+	}
+
+	// Destroy the trained model to make sure Load() actually works.
+	rfGPU.Close()
+
+	// Load GPU model.
+	rfGPU, err = Load(
+		gpuModelFile,
+		WithBackend(BackendGPU),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rfGPU.Close()
+
+	// Warmup.
 	for i := 0; i < 2; i++ {
 		_, err := rfGPU.Predict(X)
 		if err != nil {
@@ -70,7 +93,9 @@ func TestRandomForest_BackendComparison(t *testing.T) {
 
 	accGPU := computeAccuracy(predGPU, y)
 
-	// ---------------- CPU ----------------
+	// ============================================================
+	// CPU
+	// ============================================================
 
 	rfCPU, err := New(
 		WithEstimators(50),
@@ -83,15 +108,36 @@ func TestRandomForest_BackendComparison(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer rfCPU.Close()
 
 	cpuTrainStart := time.Now()
 
 	if err := rfCPU.Fit(X, y); err != nil {
+		rfCPU.Close()
 		t.Fatal(err)
 	}
 
 	cpuTrainTime := time.Since(cpuTrainStart)
+
+	// Save CPU model.
+	cpuModelFile := "../models/random_forest_cpu.bin"
+
+	if err := rfCPU.Save(cpuModelFile); err != nil {
+		rfCPU.Close()
+		t.Fatal(err)
+	}
+
+	// Destroy the trained model to make sure Load() actually works.
+	rfCPU.Close()
+
+	// Load CPU model.
+	rfCPU, err = Load(
+		cpuModelFile,
+		WithBackend(BackendCPU),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rfCPU.Close()
 
 	cpuPredictStart := time.Now()
 
@@ -104,7 +150,9 @@ func TestRandomForest_BackendComparison(t *testing.T) {
 
 	accCPU := computeAccuracy(predCPU, y)
 
-	// ---------------- logs ----------------
+	// ============================================================
+	// Logs
+	// ============================================================
 
 	t.Logf("Samples         : %d", len(y))
 
@@ -138,7 +186,9 @@ func TestRandomForest_BackendComparison(t *testing.T) {
 		accCPU*100,
 	)
 
-	// ---------------- sanity ----------------
+	// ============================================================
+	// Sanity
+	// ============================================================
 
 	if len(predGPU) != len(predCPU) {
 		t.Fatalf(
@@ -163,6 +213,13 @@ func TestRandomForest_BackendComparison(t *testing.T) {
 			len(y),
 		)
 	}
+
+	// Clean up serialized models.
+	// os.Remove(gpuModelFile)
+	// os.Remove(gpuModelFile + ".meta")
+
+	// os.Remove(cpuModelFile)
+	// os.Remove(cpuModelFile + ".meta")
 }
 
 func computeAccuracy(pred, y []int) float64 {

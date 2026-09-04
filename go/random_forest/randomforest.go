@@ -295,40 +295,80 @@ func (rf *RandomForest) Close() {
 }
 
 func (rf *RandomForest) Save(filename string) error {
-
 	if rf == nil {
 		return fmt.Errorf("random forest is nil")
 	}
 
-	if rf.backend != BackendGPU {
+	switch rf.backend {
+
+	case BackendGPU:
+		if rf.gpu == nil {
+			return fmt.Errorf("random forest GPU is closed")
+		}
+
+		return capi.RandomForestSave(
+			rf.gpu,
+			filename,
+		)
+
+	case BackendCPU:
+		if rf.cpu == nil {
+			return fmt.Errorf("random forest CPU is closed")
+		}
+
+		return capi.RFCPUSave(
+			rf.cpu,
+			filename,
+		)
+
+	default:
 		return fmt.Errorf(
-			"Save is only supported for the GPU backend",
+			"invalid random forest backend: %d",
+			rf.backend,
+		)
+	}
+}
+
+func Load(
+	filename string,
+	opts ...Option,
+) (*RandomForest, error) {
+
+	rf := &RandomForest{
+		backend: BackendGPU,
+	}
+
+	for _, opt := range opts {
+		opt(rf)
+	}
+
+	switch rf.backend {
+
+	case BackendGPU:
+		handle, err := capi.RandomForestLoad(filename)
+		if err != nil {
+			return nil, err
+		}
+
+		rf.gpu = handle
+
+	case BackendCPU:
+		handle, err := capi.RFCPULoad(filename)
+		if err != nil {
+			return nil, err
+		}
+
+		rf.cpu = handle
+
+	default:
+		return nil, fmt.Errorf(
+			"invalid random forest backend: %d",
+			rf.backend,
 		)
 	}
 
-	if rf.gpu == nil {
-		return fmt.Errorf("random forest GPU is closed")
-	}
-
-	return capi.RandomForestSave(
-		rf.gpu,
-		filename,
-	)
+	return rf, nil
 }
-
-func Load(filename string) (*RandomForest, error) {
-
-	handle, err := capi.RandomForestLoad(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	return &RandomForest{
-		gpu:     handle,
-		backend: BackendGPU,
-	}, nil
-}
-
 func (rf *RandomForest) SetCPUThreads(threads int) {
 	capi.SetCPUThreads(threads)
 	capi.SetCPUThreadsCPU(rf.cpu, threads)

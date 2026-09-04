@@ -7,6 +7,8 @@
 #include <cstdio>
 #include <iostream>
 #include <memory>
+#include <fstream>
+#include <string>
 
 struct RFCPUHandle {
 
@@ -75,6 +77,195 @@ void rf_set_cpu_threads_cpu(RFCPUHandle* handle, int threads)
     }
 
     handle->cpu_threads = threads;
+}
+
+int rf_cpu_save(
+    RFCPUHandle* handle,
+    const char* filename
+)
+{
+    if (handle == nullptr || handle->model == nullptr) {
+        std::cerr << "rf_cpu_save: invalid handle" << std::endl;
+        return -1;
+    }
+
+    if (filename == nullptr) {
+        std::cerr << "rf_cpu_save: filename is null" << std::endl;
+        return -1;
+    }
+
+    try {
+
+        // Save the trained mlpack model.
+        bool success = mlpack::data::Save(
+            filename,
+            *handle->model
+        );
+
+        if (!success) {
+            std::cerr
+                << "rf_cpu_save: failed to save model"
+                << std::endl;
+            return -1;
+        }
+
+        // Save wrapper metadata.
+        std::ofstream meta(
+            std::string(filename) + ".meta"
+        );
+
+        if (!meta) {
+            std::cerr
+                << "rf_cpu_save: failed to create metadata file"
+                << std::endl;
+            return -1;
+        }
+
+        meta << "n_estimators " << handle->n_estimators << '\n';
+        meta << "max_depth " << handle->max_depth << '\n';
+        meta << "max_features " << handle->max_features << '\n';
+        meta << "max_leaves " << handle->max_leaves << '\n';
+        meta << "max_samples " << handle->max_samples << '\n';
+        meta << "n_classes " << handle->n_classes << '\n';
+        meta << "n_features " << handle->n_features << '\n';
+        meta << "cpu_threads " << handle->cpu_threads << '\n';
+
+        if (!meta) {
+            std::cerr
+                << "rf_cpu_save: failed while writing metadata"
+                << std::endl;
+            return -1;
+        }
+
+        meta.close();
+
+        return 0;
+
+    }
+    catch (const std::exception& e) {
+
+        std::cerr
+            << "rf_cpu_save: "
+            << e.what()
+            << std::endl;
+
+        return -1;
+    }
+}
+
+RFCPUHandle* rf_cpu_load(
+    const char* filename
+)
+{
+    if (filename == nullptr) {
+        std::cerr << "rf_cpu_load: filename is null" << std::endl;
+        return nullptr;
+    }
+
+    try {
+
+        auto* handle = new RFCPUHandle();
+
+        handle->model =
+            std::make_unique<mlpack::RandomForest<>>();
+
+        bool success = mlpack::data::Load(
+            filename,
+            *handle->model
+        );
+
+        if (!success) {
+            std::cerr
+                << "rf_cpu_load: failed to load model"
+                << std::endl;
+
+            delete handle;
+            return nullptr;
+        }
+
+        std::ifstream meta(
+            std::string(filename) + ".meta"
+        );
+
+        if (!meta) {
+            std::cerr
+                << "rf_cpu_load: failed to open metadata file"
+                << std::endl;
+
+            delete handle;
+            return nullptr;
+        }
+
+        std::string key;
+
+        if (!(meta >> key >> handle->n_estimators) ||
+            key != "n_estimators") {
+            std::cerr << "rf_cpu_load: invalid n_estimators metadata" << std::endl;
+            delete handle;
+            return nullptr;
+        }
+
+        if (!(meta >> key >> handle->max_depth) ||
+            key != "max_depth") {
+            std::cerr << "rf_cpu_load: invalid max_depth metadata" << std::endl;
+            delete handle;
+            return nullptr;
+        }
+
+        if (!(meta >> key >> handle->max_features) ||
+            key != "max_features") {
+            std::cerr << "rf_cpu_load: invalid max_features metadata" << std::endl;
+            delete handle;
+            return nullptr;
+        }
+
+        if (!(meta >> key >> handle->max_leaves) ||
+            key != "max_leaves") {
+            std::cerr << "rf_cpu_load: invalid max_leaves metadata" << std::endl;
+            delete handle;
+            return nullptr;
+        }
+
+        if (!(meta >> key >> handle->max_samples) ||
+            key != "max_samples") {
+            std::cerr << "rf_cpu_load: invalid max_samples metadata" << std::endl;
+            delete handle;
+            return nullptr;
+        }
+
+        if (!(meta >> key >> handle->n_classes) ||
+            key != "n_classes") {
+            std::cerr << "rf_cpu_load: invalid n_classes metadata" << std::endl;
+            delete handle;
+            return nullptr;
+        }
+
+        if (!(meta >> key >> handle->n_features) ||
+            key != "n_features") {
+            std::cerr << "rf_cpu_load: invalid n_features metadata" << std::endl;
+            delete handle;
+            return nullptr;
+        }
+
+        if (!(meta >> key >> handle->cpu_threads) ||
+            key != "cpu_threads") {
+            std::cerr << "rf_cpu_load: invalid cpu_threads metadata" << std::endl;
+            delete handle;
+            return nullptr;
+        }
+
+        return handle;
+
+    }
+    catch (const std::exception& e) {
+
+        std::cerr
+            << "rf_cpu_load: "
+            << e.what()
+            << std::endl;
+
+        return nullptr;
+    }
 }
 
 int rf_cpu_fit(

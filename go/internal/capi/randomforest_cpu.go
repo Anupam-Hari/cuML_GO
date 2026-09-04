@@ -5,6 +5,7 @@ package capi
 #cgo LDFLAGS: -L${SRCDIR}/../../../build -lcumlgo
 
 #include "random_forest_cpu.h"
+#include <stdlib.h>
 */
 import "C"
 
@@ -51,6 +52,50 @@ func SetCPUThreadsCPU(h *RFCPUHandle, threads int) {
         h.ptr,
         C.int(threads),
     )
+}
+
+func RFCPUSave(
+	h *RFCPUHandle,
+	filename string,
+) error {
+
+	if h == nil || h.ptr == nil {
+		return fmt.Errorf("rf_cpu_save: invalid handle")
+	}
+
+	cFilename := C.CString(filename)
+	defer C.free(unsafe.Pointer(cFilename))
+
+	status := C.rf_cpu_save(
+		h.ptr,
+		cFilename,
+	)
+
+	if status != 0 {
+		return fmt.Errorf("rf_cpu_save failed")
+	}
+
+	return nil
+}
+
+func RFCPULoad(
+	filename string,
+) (*RFCPUHandle, error) {
+
+	cFilename := C.CString(filename)
+	defer C.free(unsafe.Pointer(cFilename))
+
+	h := C.rf_cpu_load(
+		cFilename,
+	)
+
+	if h == nil {
+		return nil, fmt.Errorf("rf_cpu_load failed")
+	}
+
+	return &RFCPUHandle{
+		ptr: h,
+	}, nil
 }
 
 func RFCPUFit(
